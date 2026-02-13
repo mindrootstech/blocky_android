@@ -34,13 +34,20 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.parentalcontrol.R
 import com.example.parentalcontrol.receivers.AdminReceiver
+import com.example.parentalcontrol.utils.PreferenceManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PermissionScreen(onContinue: () -> Unit = {}) {
+fun PermissionScreen(preferenceManager: PreferenceManager, onContinue: () -> Unit = {}) {
     val blackColor = colorResource(id = R.color.blackColor)
     val primaryColor = colorResource(id = R.color.primaryColor)
     val context = LocalContext.current
+
+    // IMPORTANT: Ensure protection is OFF while we are setting up permissions.
+    // This prevents blocking from starting just because a permission was granted.
+    LaunchedEffect(Unit) {
+        preferenceManager.isServiceRunning = false
+    }
 
     // Track each permission as state to ensure UI updates when they change
     var accessibilityGranted by remember { mutableStateOf(isAccessibilityEnabled(context)) }

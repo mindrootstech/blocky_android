@@ -9,15 +9,28 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.example.parentalcontrol.R
+import com.example.parentalcontrol.utils.PreferenceManager
 
 class ParentalControlService : Service() {
 
+    private lateinit var preferenceManager: PreferenceManager
+
     override fun onCreate() {
         super.onCreate()
+        preferenceManager = PreferenceManager(this)
+        
+        // Start foreground immediately as required by Android
         startForeground(1, createNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // If the service is started but the flag is off, stop itself.
+        // This handles cases where the system might restart the service automatically.
+        if (!preferenceManager.isServiceRunning) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        
         return START_STICKY
     }
 
@@ -35,9 +48,10 @@ class ParentalControlService : Service() {
 
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("Parental Control is Active")
-            .setContentText("All apps are currently monitored and locked.")
+            .setContentText("Monitoring and protection are running.")
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
             .build()
     }
 

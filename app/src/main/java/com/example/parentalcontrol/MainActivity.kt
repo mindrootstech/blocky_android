@@ -13,15 +13,19 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -67,7 +71,6 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
 
         enableEdgeToEdge()
-        startForegroundService()
 
         setContent {
             ParentalcontrolTheme {
@@ -134,6 +137,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun stopForegroundService() {
+        val intent = Intent(this, ParentalControlService::class.java)
+        stopService(intent)
+    }
+
     private fun handleNfcScanned(tagId: String) {
         Log.d("ParentalControl", "NFC Tag detected: $tagId")
         performUnlock()
@@ -185,7 +193,7 @@ class MainActivity : ComponentActivity() {
         val context = LocalContext.current
 
         var allPermissionsGranted by remember { mutableStateOf(areAllPermissionsGranted(context)) }
-        var hasTappedContinue by remember { mutableStateOf(false) } // Added state to track button tap
+        var hasTappedContinue by remember { mutableStateOf(false) }
 
         val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -201,13 +209,15 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Logic updated: Only move to dashboard if permissions are granted AND button was tapped
         if (!allPermissionsGranted || !hasTappedContinue) {
-            PermissionScreen(onContinue = { 
-                if (allPermissionsGranted) {
-                    hasTappedContinue = true 
+            PermissionScreen(
+                preferenceManager = preferenceManager,
+                onContinue = { 
+                    if (allPermissionsGranted) {
+                        hasTappedContinue = true 
+                    }
                 }
-            })
+            )
         } else if (isBlocked && !isCurrentlyUnlocked) {
             LockScreenUI()
             BackHandler(enabled = true) { /* Block */ }
@@ -215,54 +225,93 @@ class MainActivity : ComponentActivity() {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 bottomBar = {
-                    NavigationBar {
-                        NavigationBarItem(
-                            selected = currentTab == 0,
-                            onClick = { currentTab = 0 },
-                            icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                            label = { Text("General") }
-                        )
-                        NavigationBarItem(
-                            selected = currentTab == 1,
-                            onClick = { currentTab = 1 },
-                            icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                            label = { Text("Apps") }
-                        )
-                        NavigationBarItem(
-                            selected = currentTab == 2,
-                            onClick = { currentTab = 2 },
-                            icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                            label = { Text("Groups") }
-                        )
-                        NavigationBarItem(
-                            selected = currentTab == 3,
-                            onClick = { currentTab = 3 },
-                            icon = { Icon(Icons.Default.History, contentDescription = null) },
-                            label = { Text("History") }
-                        )
-                        NavigationBarItem(
-                            selected = currentTab == 4,
-                            onClick = { currentTab = 4 },
-                            icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
-                            label = { Text("Usage") }
-                        )
-                        NavigationBarItem(
-                            selected = currentTab == 5,
-                            onClick = { currentTab = 5 },
-                            icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
-                            label = { Text("Notifs") }
-                        )
+                    CurvedBottomNavigation(
+                        selectedTab = currentTab,
+                        onTabSelected = { currentTab = it }
+                    )
+                },
+                floatingActionButton = {
+                    FloatingActionButton(
+                        onClick = { currentTab = 6 }, // Center Profile/Menu Tab
+                        containerColor = colorResource(id = R.color.primaryColor),
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .offset(y = 42.dp)
+                            .size(64.dp)
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(32.dp))
                     }
-                }
+                },
+                floatingActionButtonPosition = FabPosition.Center
             ) { innerPadding ->
                 Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
                     when (currentTab) {
-                        0 -> SettingsScreen(preferenceManager)
+                        0 -> {
+                            HomeScreen(preferenceManager)
+                            // Side effect to sync foreground service with preference state
+                            LaunchedEffect(preferenceManager.isServiceRunning) {
+                                if (preferenceManager.isServiceRunning) {
+                                    startForegroundService()
+                                } else {
+                                    stopForegroundService()
+                                }
+                            }
+                        }
                         1 -> AppListScreen(preferenceManager)
                         2 -> GroupManagementScreen(preferenceManager)
                         3 -> HistoryScreen(preferenceManager)
                         4 -> UsageScreen(preferenceManager)
                         5 -> RestrictedNotificationsScreen(preferenceManager)
+                        6 -> ProfileScreen(onNavigate = { currentTab = it })
+                        7 -> SettingsScreen(preferenceManager)
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    fun CurvedBottomNavigation(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+        val primaryColor = colorResource(id = R.color.primaryColor)
+        val greyColor = colorResource(id = R.color.greyColor)
+
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .height(80.dp)
+                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)),
+            color = Color.White,
+            tonalElevation = 8.dp,
+            shadowElevation = 16.dp
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                IconButton(onClick = { onTabSelected(0) }) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.Home,
+                            contentDescription = null,
+                            tint = if (selectedTab == 0) primaryColor else greyColor
+                        )
+                        Text("Home", style = MaterialTheme.typography.labelSmall, color = if (selectedTab == 0) primaryColor else greyColor)
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(64.dp))
+
+                IconButton(onClick = { onTabSelected(6) }) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            tint = if (selectedTab == 6) primaryColor else greyColor
+                        )
+                        Text("Profile", style = MaterialTheme.typography.labelSmall, color = if (selectedTab == 6) primaryColor else greyColor)
                     }
                 }
             }
