@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Blocky</string>
+    <string name="accessibility_service_label">Parental App Blocker</string>
+    <string name="accessibility_service_description">Monitors foreground apps to provide parental control and app locking functionality.</string>
+</resources>
