@@ -4,5 +4,19 @@
     <color name="lightGreyColor">#FAFAFA</color>
     <color name="blackColor">#060606</color>
     <color name="greyColor">#5E5E5E</color>
-
+    
+    <!-- Neumorphic UI Colors -->
+    <color name="neumorphic_bg">#F0F3F8</color>
+    <color name="neumorphic_shadow_dark">#D1D9E6</color>
+    <color name="white">#FFFFFF</color>
+    
+    <!-- Progress & Button Colors -->
+    <color name="purple_start_light">#9C27B0</color>
+    <color name="purple_start_dark">#6A1B9A</color>
+    <color name="red_stop_light">#EF5350</color>
+    <color name="red_stop_dark">#C62828</color>
+    <color name="red_stop_vibrant">#FF5252</color>
+    <color name="red_stop_deep">#D32F2F</color>
+    <color name="purple_start_vibrant">#AB47BC</color>
+    <color name="purple_start_deep">#7B1FA2</color>
 </resources>
