@@ -14,6 +14,14 @@ val Typography = Typography(
     ),
 
 
+    displayMedium = TextStyle(
+        fontFamily = interFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 21.sp,
+        lineHeight = 50.sp,
+    ),
+
+
     bodyLarge = TextStyle(
         fontFamily = interFamily,
         fontWeight = FontWeight.SemiBold,
@@ -45,5 +53,7 @@ val Typography = Typography(
         lineHeight = 19.sp,
         letterSpacing = 0.sp
     ),
+
+
 
 )
