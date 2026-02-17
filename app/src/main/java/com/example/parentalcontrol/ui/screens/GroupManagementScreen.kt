@@ -1,6 +1,10 @@
 package com.example.parentalcontrol.ui.screens
 
 import android.app.TimePickerDialog
+import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -157,10 +161,27 @@ fun TimePickerButton(label: String, onTimeSelected: (String) -> Unit) {
     }) { Text(label) }
 }
 
-private fun getInstalledApps(context: android.content.Context): List<AppInfoData> {
+private fun getInstalledApps(context: Context): List<AppInfoData> {
     val pm = context.packageManager
-    val apps = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
-    return apps.filter { (it.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0 }
-        .map { AppInfoData(it.loadLabel(pm).toString(), it.packageName, it.loadIcon(pm)) }
+    val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+    return apps.filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
+        .map {
+            val category = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                when (it.category) {
+                    ApplicationInfo.CATEGORY_GAME -> "Games"
+                    ApplicationInfo.CATEGORY_AUDIO -> "Audio"
+                    ApplicationInfo.CATEGORY_VIDEO -> "Video"
+                    ApplicationInfo.CATEGORY_IMAGE -> "Images"
+                    ApplicationInfo.CATEGORY_SOCIAL -> "Social"
+                    ApplicationInfo.CATEGORY_NEWS -> "News"
+                    ApplicationInfo.CATEGORY_MAPS -> "Maps"
+                    ApplicationInfo.CATEGORY_PRODUCTIVITY -> "Productivity"
+                    else -> "Others"
+                }
+            } else {
+                "Others"
+            }
+            AppInfoData(it.loadLabel(pm).toString(), it.packageName, it.loadIcon(pm), category)
+        }
         .sortedBy { it.label }
 }

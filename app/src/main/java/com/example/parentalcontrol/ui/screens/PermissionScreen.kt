@@ -43,12 +43,6 @@ fun PermissionScreen(preferenceManager: PreferenceManager, onContinue: () -> Uni
     val primaryColor = colorResource(id = R.color.primaryColor)
     val context = LocalContext.current
 
-    // IMPORTANT: Ensure protection is OFF while we are setting up permissions.
-    // This prevents blocking from starting just because a permission was granted.
-    LaunchedEffect(Unit) {
-        preferenceManager.isServiceRunning = false
-    }
-
     // Track each permission as state to ensure UI updates when they change
     var accessibilityGranted by remember { mutableStateOf(isAccessibilityEnabled(context)) }
     var overlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }

@@ -38,7 +38,7 @@ val Typography = Typography(
         letterSpacing = 0.sp
     ),
 
-    bodySmall = TextStyle(
+        bodySmall = TextStyle(
         fontFamily = interFamily,
         fontWeight = FontWeight.Light,
         fontSize = 12.sp,
@@ -54,6 +54,11 @@ val Typography = Typography(
         letterSpacing = 0.sp
     ),
 
-
-
+    labelLarge = TextStyle
+(
+        fontFamily = interFamily,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 36.sp,
+        lineHeight = 50.sp,
+    )
 )

@@ -1,56 +1,52 @@
 package com.example.parentalcontrol.ui.screens
 
-import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.parentalcontrol.MainActivity
-import com.example.parentalcontrol.utils.PreferenceManager
+import com.example.parentalcontrol.R
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(preferenceManager: PreferenceManager) {
-    var isStrictMode by remember { mutableStateOf(preferenceManager.isStrictMode) }
-    val context = LocalContext.current
+fun SettingsScreen(onNavigate: (Int) -> Unit) {
+    val menuItems = listOf(
+        SettingsMenuItem("App Management", Icons.Default.Apps, 1),
+        SettingsMenuItem("Group Management", Icons.Default.Group, 2),
+        SettingsMenuItem("Activity History", Icons.Default.History, 3),
+        SettingsMenuItem("Usage Statistics", Icons.Default.BarChart, 4),
+        SettingsMenuItem("Notification Logs", Icons.Default.Notifications, 5)
+    )
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("General Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Strict Mode", fontWeight = FontWeight.Bold)
-                    Text("Prevents uninstallation using Device Admin.", fontSize = 12.sp, color = Color.Gray)
-                }
-                Switch(
-                    checked = isStrictMode,
-                    onCheckedChange = {
-                        preferenceManager.isStrictMode = it
-                        isStrictMode = it
-                    }
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Menu", style = MaterialTheme.typography.bodyLarge) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = colorResource(id = R.color.lightGreyColor)
                 )
+            )
+        }
+    ) { padding ->
+        LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
+            items(menuItems) { item ->
+                ListItem(
+                    headlineContent = { Text(item.title) },
+                    leadingContent = { Icon(item.icon, contentDescription = null, tint = colorResource(id = R.color.primaryColor)) },
+                    trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                    modifier = Modifier.clickable { onNavigate(item.tabIndex) }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp)
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("All core permissions are currently active.", fontSize = 14.sp, color = Color.Green)
-        
-        // This is where logout would be, but user said remove login/signup. 
-        // I'll keep the button but maybe change it to "Reset App" or something if they want, 
-        // but for now I'll remove the Login/Signup specific parts.
     }
 }
+
+data class SettingsMenuItem(val title: String, val icon: ImageVector, val tabIndex: Int)

@@ -13,6 +13,13 @@ data class AppGroup(
     val isEnabled: Boolean = true
 )
 
+data class Mode(
+    val name: String,
+    val packageNames: Set<String>,
+    val isEnabled: Boolean = false,
+    val durationMinutes: Int = 15 // Default duration
+)
+
 data class BlockEvent(
     val packageName: String,
     val timestamp: Long
@@ -38,6 +45,10 @@ class PreferenceManager(context: Context) {
     var isFirstLaunch: Boolean
         get() = prefs.getBoolean("is_first_launch", true)
         set(value) = prefs.edit().putBoolean("is_first_launch", value).apply()
+
+    var isPermissionOnboarded: Boolean
+        get() = prefs.getBoolean("is_permission_onboarded", false)
+        set(value) = prefs.edit().putBoolean("is_permission_onboarded", value).apply()
 
     var isLocked: Boolean
         get() = prefs.getBoolean("is_locked", true)
@@ -72,6 +83,17 @@ class PreferenceManager(context: Context) {
         }
         restrictedApps = current
     }
+
+    var modes: List<Mode>
+        get() {
+            val json = prefs.getString("modes", null) ?: return emptyList()
+            val type = object : TypeToken<List<Mode>>() {}.type
+            return gson.fromJson(json, type)
+        }
+        set(value) {
+            val json = gson.toJson(value)
+            prefs.edit().putString("modes", json).apply()
+        }
 
     var appGroups: List<AppGroup>
         get() {
@@ -118,7 +140,10 @@ class PreferenceManager(context: Context) {
         }
 
     fun isAppRestricted(packageName: String): Boolean {
-        return restrictedApps.contains(packageName) || appGroups.any { group -> group.isEnabled && group.packageNames.contains(packageName) }
+        val inActiveMode = modes.any { it.isEnabled && it.packageNames.contains(packageName) }
+        return restrictedApps.contains(packageName) || 
+               appGroups.any { group -> group.isEnabled && group.packageNames.contains(packageName) } ||
+               inActiveMode
     }
 
     fun addCapturedNotification(packageName: String, title: String, content: String) {

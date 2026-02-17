@@ -1,5 +1,6 @@
 package com.example.parentalcontrol.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -7,12 +8,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -22,73 +28,146 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.parentalcontrol.R
+import com.example.parentalcontrol.ui.components.CreateModeBottomSheet
+import com.example.parentalcontrol.ui.components.SelectedAppsIcons
+import com.example.parentalcontrol.utils.Mode
 import com.example.parentalcontrol.utils.PreferenceManager
+import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
 
 @Composable
-fun HomeScreen(preferenceManager: PreferenceManager) {
+fun HomeScreen(
+    preferenceManager: PreferenceManager,
+    onSelectAppClick: (String, Set<String>) -> Unit = { _, _ -> }
+) {
+    val context = LocalContext.current
     var isRunning by remember { mutableStateOf(preferenceManager.isServiceRunning) }
+    var showCreateSheet by remember { mutableStateOf(false) }
+    var modes by remember { mutableStateOf(preferenceManager.modes) }
 
-    // VARIABLE TO CONTROL PROGRESS FILL (0.0 to 1.0)
-    val targetProgress = if (isRunning) 0.75f else 0f
+    // State for the sheet to handle returning from AppListScreen
+    var pendingModeName by remember { mutableStateOf("") }
+    var pendingSelectedApps by remember { mutableStateOf(setOf<String>()) }
+
+    var currentProgress by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(isRunning) {
+        if (isRunning) {
+            while (true) {
+                val startTime = preferenceManager.lastServiceStartTime
+                val elapsed = System.currentTimeMillis() - startTime
+                val oneHourMs = 3600000L
+                currentProgress = (elapsed % oneHourMs).toFloat() / oneHourMs.toFloat()
+                delay(1000)
+            }
+        } else {
+            currentProgress = 0f
+        }
+    }
 
     HomeContent(
         isRunning = isRunning,
-        progress = targetProgress,
+        progress = currentProgress,
+        modes = modes,
         onToggle = {
-            val newState = !isRunning
-            preferenceManager.isServiceRunning = newState
-            isRunning = newState
-            if (newState) {
-                preferenceManager.lastServiceStartTime = System.currentTimeMillis()
+            if (!isRunning && modes.none { it.isEnabled }) {
+                Toast.makeText(context, "Please select a mode first to start", Toast.LENGTH_SHORT).show()
+            } else {
+                val newState = !isRunning
+                preferenceManager.isServiceRunning = newState
+                isRunning = newState
+                if (newState) {
+                    preferenceManager.lastServiceStartTime = System.currentTimeMillis()
+                }
             }
+        },
+        onCreateModeClick = { 
+            pendingModeName = ""
+            pendingSelectedApps = emptySet()
+            showCreateSheet = true 
+        },
+        onModeToggle = { mode, enabled ->
+            // Only one mode can be enabled at a time based on the radio button behavior
+            val updatedModes = modes.map { 
+                it.copy(isEnabled = if (it.name == mode.name) enabled else false) 
+            }
+            preferenceManager.modes = updatedModes
+            modes = updatedModes
         }
     )
+
+    if (showCreateSheet) {
+        CreateModeBottomSheet(
+            initialName = pendingModeName,
+            selectedPackageNames = pendingSelectedApps,
+            onDismiss = { showCreateSheet = false },
+            onSelectApp = { name ->
+                pendingModeName = name
+                onSelectAppClick(name, pendingSelectedApps)
+            },
+            onSave = { name ->
+                val newMode = Mode(name, pendingSelectedApps, false)
+                val updatedModes = modes + newMode
+                preferenceManager.modes = updatedModes
+                modes = updatedModes
+                showCreateSheet = false
+                pendingModeName = ""
+                pendingSelectedApps = emptySet()
+            }
+        )
+    }
 }
 
 @Composable
 fun HomeContent(
     isRunning: Boolean,
     progress: Float,
-    onToggle: () -> Unit
+    modes: List<Mode>,
+    onToggle: () -> Unit,
+    onCreateModeClick: () -> Unit,
+    onModeToggle: (Mode, Boolean) -> Unit
 ) {
-    // Access colors from resources
-    val bgColor = colorResource(id = R.color.neumorphic_bg)
     val pureWhite = colorResource(id = R.color.white)
     val blackColor = colorResource(id = R.color.blackColor)
-
+    val primaryColor = colorResource(id = R.color.primaryColor)
     val activeColor = colorResource(id = R.color.purple_start_vibrant)
+    val activeBgColor = colorResource(id = R.color.lightPurpleColor)
+    val inactiveBgColor = colorResource(id = R.color.neumorphic_bg)
+
+    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(pureWhite)
+            .verticalScroll(scrollState)
     ) {
-        // MAIN CONTENT AREA (Grey background with curved bottom)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(bottomStart = 50.dp, bottomEnd = 50.dp))
-                .background(bgColor)
+                .clip(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
+                .background(if (isRunning) activeBgColor else inactiveBgColor)
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 1. TOP HEADER (Inside Grey Box): "Blocky" centered
+                Spacer(modifier = Modifier.height(25.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 20.dp),
+                        .padding(horizontal = 24.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
@@ -109,22 +188,225 @@ fun HomeContent(
                     )
                 }
 
-                // Interaction Area
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 60.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    CenterButton(
-                        isRunning = isRunning,
-                        activeColor = activeColor,
-                        progress = progress,
-                        onToggle = onToggle
-                    )
+                CenterButton(
+                    isRunning = isRunning,
+                    activeColor = activeColor,
+                    progress = progress,
+                    onToggle = onToggle
+                )
+
+                if (isRunning) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onToggle,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = primaryColor,
+                            contentColor = Color.White
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
+                        shape = RoundedCornerShape(100.dp),
+                        modifier = Modifier
+                            .padding(bottom = 24.dp)
+                            .height(38.dp)
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        Text(
+                            text = "Take a break", 
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                } else {
+                    Spacer(modifier = Modifier.height(64.dp))
                 }
             }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Modes:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = blackColor
+                )
+                
+                if (modes.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .then(
+                                if (!isRunning) {
+                                    Modifier.clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = onCreateModeClick
+                                    )
+                                } else Modifier
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = primaryColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Add Mode",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = primaryColor
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (modes.isEmpty()) {
+                EmptyModesSection(isRunning, onCreateModeClick)
+            } else {
+                modes.forEach { mode ->
+                    ModeItem(mode, isRunning, onModeToggle)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(110.dp))
+    }
+}
+
+@Composable
+fun ModeItem(mode: Mode, isRunning: Boolean, onToggle: (Mode, Boolean) -> Unit) {
+    val context = LocalContext.current
+    val primaryColor = colorResource(id = R.color.primaryColor)
+    val greyColor = colorResource(id = R.color.greyColor)
+    val activeBgColor = colorResource(id = R.color.lightPurpleColor)
+    val inactiveBgColor = colorResource(id = R.color.neumorphic_bg)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (isRunning && !mode.isEnabled) 0.6f else 1f)
+            .then(
+                if (!isRunning) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onToggle(mode, !mode.isEnabled) }
+                } else Modifier
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (mode.isEnabled) activeBgColor else inactiveBgColor
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // TOP ROW: Name and Radio Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = mode.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                RadioButton(
+                    selected = mode.isEnabled,
+                    onClick = if (!isRunning) { { onToggle(mode, !mode.isEnabled) } } else null,
+                    colors = RadioButtonDefaults.colors(
+                        selectedColor = primaryColor,
+                        unselectedColor = greyColor.copy(alpha = 0.5f)
+                    ),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // BOTTOM ROW: Duration and Icons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${mode.durationMinutes / 60}h ${mode.durationMinutes % 60}m",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = greyColor,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Icons block at the end of the row
+                SelectedAppsIcons(context, mode.packageNames, useBodySmall = true)
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyModesSection(isRunning: Boolean, onCreateModeClick: () -> Unit) {
+    val blackColor = colorResource(id = R.color.blackColor)
+    val greyColor = colorResource(id = R.color.greyColor)
+    val primaryColor = colorResource(id = R.color.primaryColor)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.modes_icon),
+            contentDescription = null,
+            modifier = Modifier.size(34.dp)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "No Modes Yet",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = blackColor
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "Create a custom profile to stay focused.",
+            style = MaterialTheme.typography.labelSmall,
+            color = greyColor,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        Button(
+            onClick = onCreateModeClick,
+            // Button functionality is blocked when running, but appearance remains same
+            colors = ButtonDefaults.buttonColors(
+                containerColor = primaryColor
+            ),
+            shape = RoundedCornerShape(100.dp),
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "New Mode",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+            )
         }
     }
 }
@@ -142,21 +424,23 @@ fun CenterButton(
     val purpleVibrant = colorResource(id = R.color.purple_start_vibrant)
     val purpleDeep = colorResource(id = R.color.purple_start_deep)
     val lightPurpleColor = colorResource(id = R.color.lightPurpleColor)
+    val greyColor = colorResource(id = R.color.greyColor)
+    val primaryColor = colorResource(id = R.color.primaryColor)
 
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
-        animationSpec = tween(durationMillis = 2000, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 1000, easing = LinearEasing),
         label = "ProgressAnimation"
     )
 
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.size(340.dp)
+        modifier = modifier.size(300.dp)
     ) {
         // OUTER NEUMORPHIC SURFACE
         Box(
             modifier = Modifier
-                .size(250.dp)
+                .size(240.dp)
                 .shadow(
                     12.dp,
                     CircleShape,
@@ -168,7 +452,7 @@ fun CenterButton(
         )
 
         // 3D SUNKEN TRACK AND PROGRESS
-        Canvas(modifier = Modifier.size(250.dp)) {
+        Canvas(modifier = Modifier.size(240.dp)) {
             val strokeWidth = 32.dp.toPx()
 
             // --- EMPTY TRACK ---
@@ -267,49 +551,127 @@ fun CenterButton(
             }
         }
 
-        // ACTUAL BUTTON
+        // ACTUAL BUTTON AREA
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(106.dp)
-                .shadow(25.dp, CircleShape, spotColor = activeColor)
-                .clip(CircleShape)
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(purpleVibrant, purpleDeep)
-                    )
-                )
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(color = Color.White),
-                    onClick = onToggle
+                .then(if (isRunning) Modifier.fillMaxWidth() else Modifier.size(106.dp))
+                .then(
+                    if (!isRunning) {
+                        Modifier
+                            .shadow(25.dp, CircleShape, spotColor = activeColor)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(purpleVibrant, purpleDeep)
+                                )
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = ripple(color = Color.White),
+                                onClick = onToggle
+                            )
+                    } else {
+                        Modifier // No background, no shadow, no click when running
+                    }
                 )
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                pureWhite.copy(alpha = 0.4f),
-                                Color.Transparent
-                            ), startY = 0f, endY = 150f
+            if (!isRunning) {
+                // Glossy effect only for start button
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    pureWhite.copy(alpha = 0.4f),
+                                    Color.Transparent
+                                ), startY = 0f, endY = 150f
+                            )
                         )
+                )
+                Text(
+                    text = "Start",
+                    color = pureWhite,
+                    style = MaterialTheme.typography.displayMedium,
+                    textAlign = TextAlign.Center
+                )
+            } else {
+                val totalSeconds = (progress * 3600).toInt()
+                val mins = totalSeconds / 60
+                val secs = totalSeconds % 60
+                
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.width(45.dp)
+                    ) {
+                        Text(
+                            text = "%02d".format(mins),
+                            color = primaryColor,
+                            maxLines = 1,
+                            softWrap = false,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFeatureSettings = "tnum"
+                            ),
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "min",
+                            color = greyColor,
+                            softWrap = false,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
+                        )
+                    }
+
+                    Text(
+                        text = " : ",
+                        color = primaryColor,
+                        maxLines = 1,
+                        softWrap = false,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .offset(y = (-4).dp)
                     )
-            )
-            Text(
-                text = if (isRunning) "Stop" else "Start",
-                color = pureWhite,
-                style = MaterialTheme.typography.displayMedium
-            )
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.width(45.dp)
+                    ) {
+                        Text(
+                            text = "%02d".format(secs),
+                            color = primaryColor,
+                            maxLines = 1,
+                            softWrap = false,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFeatureSettings = "tnum"
+                            ),
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "sec",
+                            color = greyColor,
+                            softWrap = false,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
-@Preview(showBackground = true, name = "Test Case 75%")
+@Preview(showBackground = true, name = "Home with Empty Modes")
 @Composable
-fun PreviewHomeTest() {
+fun PreviewHomeModes() {
     MaterialTheme {
-        HomeContent(isRunning = true, progress = 0.55f, onToggle = {})
+        HomeContent(isRunning = false, progress = 0f, modes = emptyList(), onToggle = {}, onCreateModeClick = {}, onModeToggle = {_,_ ->})
     }
 }
