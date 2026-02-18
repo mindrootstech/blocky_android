@@ -39,41 +39,41 @@ data class DetailedSession(
     val durationMs: Long
 )
 
-class PreferenceManager(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences("parental_prefs", Context.MODE_PRIVATE)
+open class PreferenceManager(context: Context?) {
+    private val prefs: SharedPreferences? = context?.getSharedPreferences("parental_prefs", Context.MODE_PRIVATE)
     private val gson = Gson()
 
     var isFirstLaunch: Boolean
-        get() = prefs.getBoolean("is_first_launch", true)
-        set(value) = prefs.edit().putBoolean("is_first_launch", value).apply()
+        get() = prefs?.getBoolean("is_first_launch", true) ?: true
+        set(value) { prefs?.edit()?.putBoolean("is_first_launch", value)?.apply() }
 
     var isPermissionOnboarded: Boolean
-        get() = prefs.getBoolean("is_permission_onboarded", false)
-        set(value) = prefs.edit().putBoolean("is_permission_onboarded", value).apply()
+        get() = prefs?.getBoolean("is_permission_onboarded", false) ?: false
+        set(value) { prefs?.edit()?.putBoolean("is_permission_onboarded", value)?.apply() }
 
     var isLocked: Boolean
-        get() = prefs.getBoolean("is_locked", true)
-        set(value) = prefs.edit().putBoolean("is_locked", value).apply()
+        get() = prefs?.getBoolean("is_locked", true) ?: true
+        set(value) { prefs?.edit()?.putBoolean("is_locked", value)?.apply() }
 
     var unlockExpiration: Long
-        get() = prefs.getLong("unlock_expiration", 0L)
-        set(value) = prefs.edit().putLong("unlock_expiration", value).apply()
+        get() = prefs?.getLong("unlock_expiration", 0L) ?: 0L
+        set(value) { prefs?.edit()?.putLong("unlock_expiration", value)?.apply() }
 
     var isServiceRunning: Boolean
-        get() = prefs.getBoolean("is_service_running", false)
-        set(value) = prefs.edit().putBoolean("is_service_running", value).apply()
+        get() = prefs?.getBoolean("is_service_running", false) ?: false
+        set(value) { prefs?.edit()?.putBoolean("is_service_running", value)?.apply() }
 
     var lastServiceStartTime: Long
-        get() = prefs.getLong("last_service_start_time", 0L)
-        set(value) = prefs.edit().putLong("last_service_start_time", value).apply()
+        get() = prefs?.getLong("last_service_start_time", 0L) ?: 0L
+        set(value) { prefs?.edit()?.putLong("last_service_start_time", value)?.apply() }
 
     var isStrictMode: Boolean
-        get() = prefs.getBoolean("is_strict_mode", false)
-        set(value) = prefs.edit().putBoolean("is_strict_mode", value).apply()
+        get() = prefs?.getBoolean("is_strict_mode", false) ?: false
+        set(value) { prefs?.edit()?.putBoolean("is_strict_mode", value)?.apply() }
 
     var restrictedApps: Set<String>
-        get() = prefs.getStringSet("restricted_apps", emptySet()) ?: emptySet()
-        set(value) = prefs.edit().putStringSet("restricted_apps", value).apply()
+        get() = prefs?.getStringSet("restricted_apps", emptySet()) ?: emptySet()
+        set(value) { prefs?.edit()?.putStringSet("restricted_apps", value)?.apply() }
 
     fun toggleAppRestriction(packageName: String) {
         val current = restrictedApps.toMutableSet()
@@ -86,73 +86,73 @@ class PreferenceManager(context: Context) {
     }
 
     var scheduledApps: Set<String>
-        get() = prefs.getStringSet("scheduled_apps", emptySet()) ?: emptySet()
-        set(value) = prefs.edit().putStringSet("scheduled_apps", value).apply()
+        get() = prefs?.getStringSet("scheduled_apps", emptySet()) ?: emptySet()
+        set(value) { prefs?.edit()?.putStringSet("scheduled_apps", value)?.apply() }
 
     var modes: List<Mode>
         get() {
-            val json = prefs.getString("modes", null) ?: return emptyList()
+            val json = prefs?.getString("modes", null) ?: return emptyList()
             val type = object : TypeToken<List<Mode>>() {}.type
             return gson.fromJson(json, type)
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs.edit().putString("modes", json).apply()
+            prefs?.edit()?.putString("modes", json)?.apply()
         }
 
-    var appGroups: List<AppGroup>
+    open var appGroups: List<AppGroup>
         get() {
-            val json = prefs.getString("app_groups", null) ?: return emptyList()
+            val json = prefs?.getString("app_groups", null) ?: return emptyList()
             val type = object : TypeToken<List<AppGroup>>() {}.type
             return gson.fromJson(json, type)
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs.edit().putString("app_groups", json).apply()
+            prefs?.edit()?.putString("app_groups", json)?.apply()
         }
 
     var blockHistory: List<BlockEvent>
         get() {
-            val json = prefs.getString("block_history", null) ?: return emptyList()
+            val json = prefs?.getString("block_history", null) ?: return emptyList()
             val type = object : TypeToken<List<BlockEvent>>() {}.type
             return gson.fromJson(json, type)
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs.edit().putString("block_history", json).apply()
+            prefs?.edit()?.putString("block_history", json)?.apply()
         }
 
     var capturedNotifications: List<CapturedNotification>
         get() {
-            val json = prefs.getString("captured_notifications", null) ?: return emptyList()
+            val json = prefs?.getString("captured_notifications", null) ?: return emptyList()
             val type = object : TypeToken<List<CapturedNotification>>() {}.type
             return gson.fromJson(json, type)
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs.edit().putString("captured_notifications", json).apply()
+            prefs?.edit()?.putString("captured_notifications", json)?.apply()
         }
 
     var detailedSessions: List<DetailedSession>
         get() {
-            val json = prefs.getString("detailed_sessions", null) ?: return emptyList()
+            val json = prefs?.getString("detailed_sessions", null) ?: return emptyList()
             val type = object : TypeToken<List<DetailedSession>>() {}.type
             return gson.fromJson(json, type)
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs.edit().putString("detailed_sessions", json).apply()
+            prefs?.edit()?.putString("detailed_sessions", json)?.apply()
         }
 
     var schedules: List<Schedule>
         get() {
-            val json = prefs.getString("schedules", null) ?: return emptyList()
+            val json = prefs?.getString("schedules", null) ?: return emptyList()
             val type = object : TypeToken<List<Schedule>>() {}.type
             return gson.fromJson(json, type)
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs.edit().putString("schedules", json).apply()
+            prefs?.edit()?.putString("schedules", json)?.apply()
         }
 
     fun isAppRestricted(packageName: String): Boolean {

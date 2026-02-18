@@ -2,8 +2,6 @@ package com.example.parentalcontrol.ui.screens
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.drawable.Drawable
-import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -44,96 +42,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.example.parentalcontrol.R
-import com.example.parentalcontrol.ui.components.CreateModeBottomSheet
 import com.example.parentalcontrol.utils.Mode
-import com.example.parentalcontrol.utils.PreferenceManager
-import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
 
-@Composable
-fun HomeScreen(
-    preferenceManager: PreferenceManager,
-    onSelectAppClick: (String, Set<String>) -> Unit = { _, _ -> }
-) {
-    val context = LocalContext.current
-    var isRunning by remember { mutableStateOf(preferenceManager.isServiceRunning) }
-    var showCreateSheet by remember { mutableStateOf(false) }
-    var modes by remember { mutableStateOf(preferenceManager.modes) }
-
-    // State for the sheet to handle returning from AppListScreen
-    var pendingModeName by remember { mutableStateOf("") }
-    var pendingSelectedApps by remember { mutableStateOf(setOf<String>()) }
-
-    var currentProgress by remember { mutableFloatStateOf(0f) }
-
-    LaunchedEffect(isRunning) {
-        if (isRunning) {
-            while (true) {
-                val startTime = preferenceManager.lastServiceStartTime
-                val elapsed = System.currentTimeMillis() - startTime
-                val oneHourMs = 3600000L
-                currentProgress = (elapsed % oneHourMs).toFloat() / oneHourMs.toFloat()
-                delay(1000)
-            }
-        } else {
-            currentProgress = 0f
-        }
-    }
-
-    HomeContent(
-        isRunning = isRunning,
-        progress = currentProgress,
-        modes = modes,
-        onToggle = {
-            if (!isRunning && modes.none { it.isEnabled }) {
-                Toast.makeText(context, "Please select a mode first to start", Toast.LENGTH_SHORT).show()
-            } else {
-                val newState = !isRunning
-                preferenceManager.isServiceRunning = newState
-                isRunning = newState
-                if (newState) {
-                    preferenceManager.lastServiceStartTime = System.currentTimeMillis()
-                }
-            }
-        },
-        onCreateModeClick = { 
-            pendingModeName = ""
-            pendingSelectedApps = emptySet()
-            showCreateSheet = true 
-        },
-        onModeToggle = { mode, enabled ->
-            // Only one mode can be enabled at a time based on the radio button behavior
-            val updatedModes = modes.map { 
-                it.copy(isEnabled = if (it.name == mode.name) enabled else false) 
-            }
-            preferenceManager.modes = updatedModes
-            modes = updatedModes
-        }
-    )
-
-    if (showCreateSheet) {
-        CreateModeBottomSheet(
-            initialName = pendingModeName,
-            selectedPackageNames = pendingSelectedApps,
-            existingModes = modes,
-            onDismiss = { showCreateSheet = false },
-            onSelectApp = { name ->
-                pendingModeName = name
-                onSelectAppClick(name, pendingSelectedApps)
-            },
-            onSave = { name ->
-                val newMode = Mode(name, pendingSelectedApps, false)
-                val updatedModes = modes + newMode
-                preferenceManager.modes = updatedModes
-                modes = updatedModes
-                showCreateSheet = false
-                pendingModeName = ""
-                pendingSelectedApps = emptySet()
-            }
-        )
-    }
-}
 
 @Composable
 fun HomeContent(

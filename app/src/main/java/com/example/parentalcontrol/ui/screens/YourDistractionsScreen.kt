@@ -38,7 +38,7 @@ import com.example.parentalcontrol.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppListScreen(
+fun YourDistractionsScreen(
     initialSelectedApps: Set<String>,
     onBack: () -> Unit,
     onDone: (Set<String>) -> Unit
@@ -383,8 +383,8 @@ data class AppInfoData(
 
 @Preview(showBackground = true)
 @Composable
-fun AppListScreenPreview() {
-    AppListScreen(
+fun YourDistractionsScreenPreview() {
+    YourDistractionsScreen(
         initialSelectedApps = emptySet(),
         onBack = {},
         onDone = {}

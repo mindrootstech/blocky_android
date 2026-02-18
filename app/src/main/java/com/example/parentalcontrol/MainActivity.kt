@@ -250,7 +250,7 @@ class MainActivity : ComponentActivity() {
             LockScreenUI()
             BackHandler(enabled = true) { /* Block */ }
         } else if (isAppListOpen) {
-            AppListScreen(
+            YourDistractionsScreen(
                 initialSelectedApps = pendingSelectedApps,
                 onBack = { 
                     isAppListOpen = false
@@ -333,13 +333,13 @@ class MainActivity : ComponentActivity() {
                                         else stopForegroundService()
                                     }
                                 }
-                                2 -> GroupManagementScreen(preferenceManager)
+//                                2 -> GroupManagementScreen(preferenceManager)
                                 3 -> {
                                     isHistoryOpen = true
                                 }
-                                4 -> UsageScreen(preferenceManager)
-                                5 -> RestrictedNotificationsScreen(preferenceManager)
-                                7 -> ProfileScreen(onNavigate = { 
+//                                4 -> UsageScreen(preferenceManager)
+//                                5 -> RestrictedNotificationsScreen(preferenceManager)
+                                7 -> SettingScreen(onNavigate = {
                                     when (it) {
                                         2 -> isSchedulesOpen = true
                                         3 -> isHistoryOpen = true

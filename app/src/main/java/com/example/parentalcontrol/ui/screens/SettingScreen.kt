@@ -23,7 +23,7 @@ import com.example.parentalcontrol.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(onNavigate: (Int) -> Unit) {
+fun SettingScreen(onNavigate: (Int) -> Unit) {
     var isStrictModeEnabled by remember { mutableStateOf(false) }
     // Light grey color for the border
     val borderColor = Color(0xFFF0F0F0)
