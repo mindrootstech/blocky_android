@@ -442,37 +442,6 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
-
-    @Composable
-    fun LockScreenUI() {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                Icons.Default.Lock,
-                contentDescription = null,
-                modifier = Modifier.size(100.dp),
-                tint = Color.Red
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                "APP RESTRICTED",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
-                color = Color.Red
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                "Please scan parent NFC card to continue.",
-                fontSize = 16.sp,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
 }
 
 class LiquidCurvedShape(
