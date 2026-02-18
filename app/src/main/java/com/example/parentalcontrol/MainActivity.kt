@@ -208,6 +208,7 @@ class MainActivity : ComponentActivity() {
         var isAppListOpen by remember { mutableStateOf(false) }
         var isSchedulesOpen by remember { mutableStateOf(false) }
         var isModeListOpen by remember { mutableStateOf(false) }
+        var isHistoryOpen by remember { mutableStateOf(false) }
 
         // Persisted state for Mode Creation flow
         var showCreateModeSheet by remember { mutableStateOf(false) }
@@ -288,6 +289,9 @@ class MainActivity : ComponentActivity() {
                 }
             )
             BackHandler { isModeListOpen = false }
+        } else if (isHistoryOpen) {
+            HistoryScreen(preferenceManager = preferenceManager, onBack = { isHistoryOpen = false })
+            BackHandler { isHistoryOpen = false }
         } else {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
@@ -330,12 +334,15 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                                 2 -> GroupManagementScreen(preferenceManager)
-                                3 -> HistoryScreen(preferenceManager)
+                                3 -> {
+                                    isHistoryOpen = true
+                                }
                                 4 -> UsageScreen(preferenceManager)
                                 5 -> RestrictedNotificationsScreen(preferenceManager)
                                 7 -> ProfileScreen(onNavigate = { 
                                     when (it) {
                                         2 -> isSchedulesOpen = true
+                                        3 -> isHistoryOpen = true
                                         8 -> isModeListOpen = true
                                         else -> currentTab = it
                                     }

@@ -18,7 +18,7 @@ data class Mode(
     val name: String,
     val packageNames: Set<String>,
     val isEnabled: Boolean = false,
-    val durationMinutes: Int = 15 // Default duration
+    val durationMinutes: Int = 15
 )
 
 data class BlockEvent(
