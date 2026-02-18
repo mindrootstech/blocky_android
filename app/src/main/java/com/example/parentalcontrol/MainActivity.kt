@@ -266,7 +266,7 @@ class MainActivity : ComponentActivity() {
                 showCreateModeSheet = true
             }
         } else if (isSchedulesOpen) {
-            SchedulesScreen(onBack = { isSchedulesOpen = false })
+            SchedulesScreen(preferenceManager = preferenceManager, onBack = { isSchedulesOpen = false })
             BackHandler { isSchedulesOpen = false }
         } else if (isModeListOpen) {
             ModeListScreen(
@@ -438,7 +438,6 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun LockScreenUI() {
-        // ... (Keep existing LockScreenUI implementation)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -469,7 +468,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// ... (Keep existing LiquidCurvedShape, CurvedBottomNavigation, Screen implementation)
 class LiquidCurvedShape(
     private val barHeight: Dp,
     private val bulgeRadius: Dp,

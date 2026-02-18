@@ -2,6 +2,7 @@ package com.example.parentalcontrol.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.parentalcontrol.model.Schedule
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -141,6 +142,17 @@ class PreferenceManager(context: Context) {
         set(value) {
             val json = gson.toJson(value)
             prefs.edit().putString("detailed_sessions", json).apply()
+        }
+
+    var schedules: List<Schedule>
+        get() {
+            val json = prefs.getString("schedules", null) ?: return emptyList()
+            val type = object : TypeToken<List<Schedule>>() {}.type
+            return gson.fromJson(json, type)
+        }
+        set(value) {
+            val json = gson.toJson(value)
+            prefs.edit().putString("schedules", json).apply()
         }
 
     fun isAppRestricted(packageName: String): Boolean {
