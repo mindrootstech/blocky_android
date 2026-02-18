@@ -149,6 +149,7 @@ fun AppListScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+
                     if (selectedApps.isNotEmpty()) {
                         Text(
                             text = "${selectedApps.size}/50",
