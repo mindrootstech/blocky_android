@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
@@ -205,11 +206,14 @@ class MainActivity : ComponentActivity() {
         
         // Navigation states for full-screen screens
         var isAppListOpen by remember { mutableStateOf(false) }
+        var isSchedulesOpen by remember { mutableStateOf(false) }
+        var isModeListOpen by remember { mutableStateOf(false) }
 
         // Persisted state for Mode Creation flow
         var showCreateModeSheet by remember { mutableStateOf(false) }
         var pendingModeName by remember { mutableStateOf("") }
         var pendingSelectedApps by remember { mutableStateOf(setOf<String>()) }
+        var editingModeName by remember { mutableStateOf<String?>(null) }
         
         val isCurrentlyUnlocked = preferenceManager.isCurrentlyUnlocked()
         val context = LocalContext.current
@@ -249,18 +253,41 @@ class MainActivity : ComponentActivity() {
                 initialSelectedApps = pendingSelectedApps,
                 onBack = { 
                     isAppListOpen = false
-                    showCreateModeSheet = true // Return to the sheet
+                    showCreateModeSheet = true 
                 },
                 onDone = { selected ->
                     pendingSelectedApps = selected
                     isAppListOpen = false
-                    showCreateModeSheet = true // Return to the sheet with apps
+                    showCreateModeSheet = true 
                 }
             )
             BackHandler { 
                 isAppListOpen = false 
                 showCreateModeSheet = true
             }
+        } else if (isSchedulesOpen) {
+            SchedulesScreen(onBack = { isSchedulesOpen = false })
+            BackHandler { isSchedulesOpen = false }
+        } else if (isModeListOpen) {
+            ModeListScreen(
+                preferenceManager = preferenceManager,
+                onBack = { isModeListOpen = false },
+                showCreateSheet = showCreateModeSheet,
+                onShowCreateSheetChange = { showCreateModeSheet = it },
+                pendingModeName = pendingModeName,
+                onPendingModeNameChange = { pendingModeName = it },
+                pendingSelectedApps = pendingSelectedApps,
+                onPendingSelectedAppsChange = { pendingSelectedApps = it },
+                editingModeName = editingModeName,
+                onEditingModeNameChange = { editingModeName = it },
+                onSelectAppClick = { name, apps ->
+                    pendingModeName = name
+                    pendingSelectedApps = apps
+                    showCreateModeSheet = false 
+                    isAppListOpen = true
+                }
+            )
+            BackHandler { isModeListOpen = false }
         } else {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
@@ -289,10 +316,11 @@ class MainActivity : ComponentActivity() {
                                         pendingSelectedApps = pendingSelectedApps,
                                         onShowCreateSheetChange = { showCreateModeSheet = it },
                                         onPendingModeNameChange = { pendingModeName = it },
+                                        onPendingSelectedAppsChange = { pendingSelectedApps = it },
                                         onSelectAppClick = { name, apps ->
                                             pendingModeName = name
                                             pendingSelectedApps = apps
-                                            showCreateModeSheet = false // Hide sheet before opening full screen
+                                            showCreateModeSheet = false 
                                             isAppListOpen = true
                                         }
                                     )
@@ -305,7 +333,13 @@ class MainActivity : ComponentActivity() {
                                 3 -> HistoryScreen(preferenceManager)
                                 4 -> UsageScreen(preferenceManager)
                                 5 -> RestrictedNotificationsScreen(preferenceManager)
-                                7 -> ProfileScreen(onNavigate = { currentTab = it })
+                                7 -> ProfileScreen(onNavigate = { 
+                                    when (it) {
+                                        2 -> isSchedulesOpen = true
+                                        8 -> isModeListOpen = true
+                                        else -> currentTab = it
+                                    }
+                                })
                             }
                         }
                     }
@@ -326,6 +360,7 @@ class MainActivity : ComponentActivity() {
         pendingSelectedApps: Set<String>,
         onShowCreateSheetChange: (Boolean) -> Unit,
         onPendingModeNameChange: (String) -> Unit,
+        onPendingSelectedAppsChange: (Set<String>) -> Unit,
         onSelectAppClick: (String, Set<String>) -> Unit
     ) {
         var modes by remember { mutableStateOf(preferenceManager.modes) }
@@ -365,11 +400,10 @@ class MainActivity : ComponentActivity() {
             },
             onCreateModeClick = {
                 onPendingModeNameChange("")
-                // Note: apps are reset separately or kept depending on desired UX
+                onPendingSelectedAppsChange(emptySet())
                 onShowCreateSheetChange(true)
             },
             onModeToggle = { mode, enabled ->
-                // Only one mode can be enabled at a time based on the radio button behavior
                 val updatedModes = modes.map { 
                     it.copy(isEnabled = if (it.name == mode.name) enabled else false) 
                 }
@@ -382,7 +416,12 @@ class MainActivity : ComponentActivity() {
             CreateModeBottomSheet(
                 initialName = pendingModeName,
                 selectedPackageNames = pendingSelectedApps,
-                onDismiss = { onShowCreateSheetChange(false) },
+                existingModes = modes,
+                onDismiss = { 
+                    onShowCreateSheetChange(false)
+                    onPendingModeNameChange("")
+                    onPendingSelectedAppsChange(emptySet())
+                },
                 onSelectApp = { name -> onSelectAppClick(name, pendingSelectedApps) },
                 onSave = { name ->
                     val newMode = Mode(name, pendingSelectedApps, false)
@@ -391,6 +430,7 @@ class MainActivity : ComponentActivity() {
                     modes = updatedModes
                     onShowCreateSheetChange(false)
                     onPendingModeNameChange("")
+                    onPendingSelectedAppsChange(emptySet())
                 }
             )
         }
@@ -398,6 +438,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun LockScreenUI() {
+        // ... (Keep existing LockScreenUI implementation)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -428,9 +469,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * Custom Shape that follows the liquid curve exactly.
- */
+// ... (Keep existing LiquidCurvedShape, CurvedBottomNavigation, Screen implementation)
 class LiquidCurvedShape(
     private val barHeight: Dp,
     private val bulgeRadius: Dp,
@@ -452,7 +491,6 @@ class LiquidCurvedShape(
             lineTo(size.width, size.height - bH + corner)
             quadraticBezierTo(size.width, size.height - bH, size.width - corner, size.height - bH)
 
-            // Curve transition
             lineTo(size.width / 2 + bR + cC, size.height - bH)
             cubicTo(
                 size.width / 2 + bR, size.height - bH,
@@ -493,7 +531,6 @@ fun CurvedBottomNavigation(
             .height(100.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // --- LIQUID CURVE BACKGROUND (Truly Transparent Outside) ---
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -503,7 +540,6 @@ fun CurvedBottomNavigation(
             shape = LiquidCurvedShape(barHeight, bulgeRadius, curveControl)
         ) {}
 
-        // --- INTEGRATED CENTER BUTTON WITH APP ICON ---
         FloatingActionButton(
             onClick = onFabClick,
             containerColor = primaryColor,
@@ -523,7 +559,6 @@ fun CurvedBottomNavigation(
             )
         }
 
-        // --- NAVIGATION ITEMS ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -531,7 +566,6 @@ fun CurvedBottomNavigation(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceAround
         ) {
-            // Left Tab: Home
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -562,7 +596,6 @@ fun CurvedBottomNavigation(
 
             Spacer(modifier = Modifier.width(90.dp))
 
-            // Right Tab: Setting
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -590,21 +623,6 @@ fun CurvedBottomNavigation(
                     )
                 }
             }
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun PreviewCurvedBottomNavigation() {
-    ParentalcontrolTheme {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.LightGray),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            CurvedBottomNavigation(selectedTab = 0, onTabSelected = {}, onFabClick = {})
         }
     }
 }

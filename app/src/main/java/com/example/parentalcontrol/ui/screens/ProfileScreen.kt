@@ -123,9 +123,9 @@ fun ProfileScreen(onNavigate: (Int) -> Unit) {
                 SettingsNavigationCard("Schedules", borderColor) { onNavigate(2) }
             }
 
-            // Model list
+            // Mode list
             item {
-                SettingsNavigationCard("Model list", borderColor) { /* Navigate to Model list */ }
+                SettingsNavigationCard("Mode list", borderColor) { onNavigate(8) }
             }
 
             // History

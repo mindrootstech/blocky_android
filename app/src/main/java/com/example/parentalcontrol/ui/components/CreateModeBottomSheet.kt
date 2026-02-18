@@ -1,10 +1,10 @@
 package com.example.parentalcontrol.ui.components
 
 import android.content.Context
-import android.content.pm.PackageManager
-import android.graphics.drawable.Drawable
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,15 +27,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.example.parentalcontrol.R
+import com.example.parentalcontrol.utils.Mode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateModeBottomSheet(
     initialName: String = "",
     selectedPackageNames: Set<String> = emptySet(),
+    isEditing: Boolean = false,
+    existingModes: List<Mode> = emptyList(),
     onDismiss: () -> Unit,
     onSelectApp: (String) -> Unit,
-    onSave: (String) -> Unit
+    onSave: (String) -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -46,9 +50,12 @@ fun CreateModeBottomSheet(
         CreateModeBottomSheetContent(
             initialName = initialName,
             selectedPackageNames = selectedPackageNames,
+            isEditing = isEditing,
+            existingModes = existingModes,
             onDismiss = onDismiss,
             onSelectApp = onSelectApp,
-            onSave = onSave
+            onSave = onSave,
+            onDelete = onDelete
         )
     }
 }
@@ -57,9 +64,12 @@ fun CreateModeBottomSheet(
 fun CreateModeBottomSheetContent(
     initialName: String = "",
     selectedPackageNames: Set<String> = emptySet(),
+    isEditing: Boolean = false,
+    existingModes: List<Mode> = emptyList(),
     onDismiss: () -> Unit,
     onSelectApp: (String) -> Unit,
-    onSave: (String) -> Unit
+    onSave: (String) -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val bgColor = colorResource(id = R.color.sheet_bg_grey)
@@ -74,7 +84,8 @@ fun CreateModeBottomSheetContent(
         modifier = Modifier
             .fillMaxWidth()
             .background(bgColor)
-            .padding(bottom = 32.dp)
+            .padding(bottom = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Header
         Row(
@@ -102,7 +113,7 @@ fun CreateModeBottomSheetContent(
             }
 
             Text(
-                text = "New Mode",
+                text = if (isEditing) "Edit Mode" else "New Mode",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -221,7 +232,19 @@ fun CreateModeBottomSheetContent(
 
         // Save Button
         Button(
-            onClick = { if (isSaveEnabled) onSave(modeName) },
+            onClick = { 
+                if (isSaveEnabled) {
+                    val nameExists = existingModes.any { 
+                        it.name.equals(modeName.trim(), ignoreCase = true) && 
+                        (!isEditing || it.name != initialName)
+                    }
+                    if (nameExists) {
+                        Toast.makeText(context, "This name is already in use", Toast.LENGTH_SHORT).show()
+                    } else {
+                        onSave(modeName)
+                    }
+                } 
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
@@ -234,8 +257,18 @@ fun CreateModeBottomSheetContent(
             shape = RoundedCornerShape(100.dp)
         ) {
             Text(
-                "Save new Mode",
+                text = if (isEditing) "Update Mode" else "Save new Mode",
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, color = Color.White),
+            )
+        }
+
+        if (isEditing && onDelete != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Delete mode",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Black,
+                modifier = Modifier.clickable { onDelete() }
             )
         }
 

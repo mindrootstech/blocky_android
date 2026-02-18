@@ -1,7 +1,11 @@
 package com.example.parentalcontrol.ui.screens
 
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.drawable.Drawable
 import android.widget.Toast
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
@@ -37,9 +42,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
 import com.example.parentalcontrol.R
 import com.example.parentalcontrol.ui.components.CreateModeBottomSheet
-import com.example.parentalcontrol.ui.components.SelectedAppsIcons
 import com.example.parentalcontrol.utils.Mode
 import com.example.parentalcontrol.utils.PreferenceManager
 import kotlinx.coroutines.delay
@@ -111,6 +116,7 @@ fun HomeScreen(
         CreateModeBottomSheet(
             initialName = pendingModeName,
             selectedPackageNames = pendingSelectedApps,
+            existingModes = modes,
             onDismiss = { showCreateSheet = false },
             onSelectApp = { name ->
                 pendingModeName = name
@@ -292,8 +298,9 @@ fun ModeItem(mode: Mode, isRunning: Boolean, onToggle: (Mode, Boolean) -> Unit) 
     val context = LocalContext.current
     val primaryColor = colorResource(id = R.color.primaryColor)
     val greyColor = colorResource(id = R.color.greyColor)
+    val whiteColor = Color.White
     val activeBgColor = colorResource(id = R.color.lightPurpleColor)
-    val inactiveBgColor = colorResource(id = R.color.neumorphic_bg)
+    val borderColor = colorResource(id = R.color.borderColor)
 
     Card(
         modifier = Modifier
@@ -307,8 +314,9 @@ fun ModeItem(mode: Mode, isRunning: Boolean, onToggle: (Mode, Boolean) -> Unit) 
                     ) { onToggle(mode, !mode.isEnabled) }
                 } else Modifier
             ),
+        border = BorderStroke(1.dp, borderColor),
         colors = CardDefaults.cardColors(
-            containerColor = if (mode.isEnabled) activeBgColor else inactiveBgColor
+            containerColor = if (mode.isEnabled) activeBgColor else whiteColor
         ),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -360,6 +368,44 @@ fun ModeItem(mode: Mode, isRunning: Boolean, onToggle: (Mode, Boolean) -> Unit) 
         }
     }
 }
+
+@Composable
+fun SelectedAppsIcons(context: Context, packageNames: Set<String>, useBodySmall: Boolean = false) {
+    val pm = context.packageManager
+    val appIcons = packageNames.take(4).mapNotNull { packageName ->
+        try {
+            pm.getApplicationIcon(packageName)
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        }
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.End
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+            appIcons.forEach { icon ->
+                Image(
+                    bitmap = icon.toBitmap().asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(if (useBodySmall) 24.dp else 32.dp)
+                        .clip(CircleShape)
+                )
+            }
+        }
+        if (packageNames.size > 4) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "+${packageNames.size - 4} others",
+                style = if (useBodySmall) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall,
+                color = colorResource(id = R.color.greyColor)
+            )
+        }
+    }
+}
+
 
 @Composable
 fun EmptyModesSection(isRunning: Boolean, onCreateModeClick: () -> Unit) {
@@ -613,8 +659,7 @@ fun CenterButton(
                         Text(
                             text = "%02d".format(mins),
                             color = primaryColor,
-                            maxLines = 1,
-                            softWrap = false,
+                            maxLines = 1, softWrap = false,
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontFeatureSettings = "tnum"
