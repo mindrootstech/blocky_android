@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Build
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -27,7 +28,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -49,8 +52,7 @@ fun AppListScreen(
     val filteredApps = if (searchQuery.isEmpty()) {
         apps
     } else {
-        apps.filter { it.label.contains(searchQuery, ignoreCase = true) }
-    }
+        apps.filter { it.label.contains(searchQuery, ignoreCase = true) } }
 
     val groupedApps = filteredApps.groupBy { it.category }
 
@@ -58,7 +60,7 @@ fun AppListScreen(
         modifier = Modifier.navigationBarsPadding(),
         topBar = {
             Surface(
-                color = Color.White,
+                color = colorResource(id = R.color.neumorphic_bg),
                 tonalElevation = 0.dp
             ) {
                 Column(
@@ -114,10 +116,10 @@ fun AppListScreen(
                                 modifier = Modifier.size(20.dp)
                             )
                         },
-                        shape = CircleShape,
+                        shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = colorResource(id = R.color.lightGreyColor),
-                            focusedContainerColor = colorResource(id = R.color.lightGreyColor),
+                            unfocusedContainerColor = colorResource(id = R.color.white),
+                            focusedContainerColor = colorResource(id = R.color.white),
                             unfocusedBorderColor = Color.Transparent,
                             focusedBorderColor = Color.Transparent
                         ),
@@ -126,10 +128,9 @@ fun AppListScreen(
                     )
                     Spacer(modifier = Modifier.height(20.dp))
                     Text(
-                        text = "SELECT APPS TO BE ALLOWED (MAXIMUM OF 50)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colorResource(id = R.color.greyColor),
-                        fontWeight = FontWeight.Bold
+                        text = "Please select atleast one app:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colorResource(id = R.color.blackColor),
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
@@ -137,31 +138,48 @@ fun AppListScreen(
         },
         bottomBar = {
             Surface(
-                color = Color.White,
+                color = colorResource(id = R.color.neumorphic_bg),
                 tonalElevation = 8.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Button(
-                    onClick = { onDone(selectedApps) },
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
-                        .height(56.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colorResource(id = R.color.primaryColor)
-                    )
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        "Done",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    if (selectedApps.isNotEmpty()) {
+                        Text(
+                            text = "${selectedApps.size}/50",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Button(
+                        onClick = { onDone(selectedApps) },
+                        modifier = Modifier
+                            .weight(1.5f)
+                            .height(50.dp),
+                        enabled = selectedApps.isNotEmpty(),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = colorResource(id = R.color.primaryColor)
+                        )
+                    ) {
+                        Text(
+                            "Done",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         },
-        containerColor = Color.White
+        containerColor = colorResource(id = R.color.neumorphic_bg)
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -205,41 +223,79 @@ fun AppListScreen(
 }
 
 @Composable
+fun getCategoryIcon(category: String): Int {
+    return when (category) {
+        "Games" -> R.drawable.games
+        "Audio" -> R.drawable.audio
+        "Video" -> R.drawable.video
+        "Social" -> R.drawable.social
+        "Productivity" -> R.drawable.productivity
+        else -> R.drawable.others
+    }
+}
+
+@Composable
 fun CategoryHeader(
     category: String,
     appCount: Int,
     isExpanded: Boolean,
     onExpandClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onExpandClick() }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = category,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "($appCount)",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
+    val iconBgColor = colorResource(id = R.color.icon_bg_grey)
+    val dividerColor = colorResource(id = R.color.divider_color)
+    val greyColor = colorResource(id = R.color.greyColor)
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onExpandClick() }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(iconBgColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = getCategoryIcon(category)),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.Unspecified
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = category,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "($appCount)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = greyColor
+                )
+            }
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = Color.Gray,
+                modifier = Modifier.size(20.dp)
             )
         }
-        Icon(
-            imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = Color.Gray,
-            modifier = Modifier.size(20.dp)
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            thickness = 1.dp,
+            color = dividerColor
         )
     }
 }
@@ -275,12 +331,14 @@ fun AppItem(
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium
         )
-        Checkbox(
-            checked = isSelected,
-            onCheckedChange = onCheckedChange,
-            colors = CheckboxDefaults.colors(
-                checkedColor = colorResource(id = R.color.primaryColor)
-            )
+        RadioButton(
+            selected = isSelected,
+            onClick = { onCheckedChange(!isSelected) },
+            colors = RadioButtonDefaults.colors(
+                selectedColor = colorResource(id = R.color.primaryColor),
+                unselectedColor = colorResource(id = R.color.greyColor).copy(alpha = 0.5f)
+            ),
+            modifier = Modifier.size(24.dp)
         )
     }
 }

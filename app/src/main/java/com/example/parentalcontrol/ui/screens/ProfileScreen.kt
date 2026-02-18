@@ -120,7 +120,7 @@ fun ProfileScreen(onNavigate: (Int) -> Unit) {
 
             // Schedules
             item {
-                SettingsNavigationCard("Schedules", borderColor) { /* Navigate to Schedules */ }
+                SettingsNavigationCard("Schedules", borderColor) { onNavigate(2) }
             }
 
             // Model list

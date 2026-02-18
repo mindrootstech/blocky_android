@@ -13,6 +13,7 @@
     <color name="icon_bg_grey">#EDECEF</color>
     <color name="sheet_bg_grey">#F5F5F5</color>
     <color name="hint_color">#D3D3D3</color>
+    <color name="divider_color">#DBDBDB</color>
     
     <!-- Progress & Button Colors -->
     <color name="purple_start_light">#9C27B0</color>

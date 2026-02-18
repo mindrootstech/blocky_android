@@ -205,7 +205,7 @@ class MainActivity : ComponentActivity() {
         
         // Navigation states for full-screen screens
         var isAppListOpen by remember { mutableStateOf(false) }
-        
+
         // Persisted state for Mode Creation flow
         var showCreateModeSheet by remember { mutableStateOf(false) }
         var pendingModeName by remember { mutableStateOf("") }

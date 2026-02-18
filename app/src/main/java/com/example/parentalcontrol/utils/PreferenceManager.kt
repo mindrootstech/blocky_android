@@ -84,6 +84,10 @@ class PreferenceManager(context: Context) {
         restrictedApps = current
     }
 
+    var scheduledApps: Set<String>
+        get() = prefs.getStringSet("scheduled_apps", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("scheduled_apps", value).apply()
+
     var modes: List<Mode>
         get() {
             val json = prefs.getString("modes", null) ?: return emptyList()
