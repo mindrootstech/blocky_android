@@ -23,9 +23,11 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.parentalcontrol.R
+import com.example.parentalcontrol.ui.theme.ParentalcontrolTheme
 
 data class OnboardingPage(
     val backgroundResId: Int,
@@ -213,7 +215,8 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                             onClick = onFinished,
                             colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
                             shape = CircleShape,
-                            modifier = Modifier.height(44.dp)
+                            modifier = Modifier.height(44.dp),
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp)
                         ) {
                             Text(
                                 text = "Get Started",
@@ -228,5 +231,13 @@ fun OnboardingScreen(onFinished: () -> Unit) {
                 Spacer(modifier = Modifier.height(20.dp))
             }
         }
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun OnboardingScreenPreview() {
+    ParentalcontrolTheme {
+        OnboardingScreen(onFinished = {})
     }
 }
