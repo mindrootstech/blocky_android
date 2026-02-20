@@ -11,5 +11,5 @@ data class Schedule(
     val endTime: Calendar,
     val mode: Mode,
     val days: List<String>,
-    val isEnabled: Boolean = true
+    val isEnabled: Boolean = false
 )

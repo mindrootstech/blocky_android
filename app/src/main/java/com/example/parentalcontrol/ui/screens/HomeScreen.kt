@@ -51,6 +51,7 @@ import kotlin.math.sin
 fun HomeContent(
     isRunning: Boolean,
     progress: Float,
+    elapsedSeconds: Long, // Pass explicit elapsed time for increasing order
     modes: List<Mode>,
     onToggle: () -> Unit,
     onCreateModeClick: () -> Unit,
@@ -110,6 +111,7 @@ fun HomeContent(
                     isRunning = isRunning,
                     activeColor = activeColor,
                     progress = progress,
+                    elapsedSeconds = elapsedSeconds, // Pass to center button
                     onToggle = onToggle
                 )
 
@@ -374,6 +376,7 @@ fun CenterButton(
     isRunning: Boolean,
     activeColor: Color,
     progress: Float,
+    elapsedSeconds: Long, // NEW: Use elapsed time for increasing count
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -555,69 +558,33 @@ fun CenterButton(
                     textAlign = TextAlign.Center
                 )
             } else {
-                val totalSeconds = (progress * 3600).toInt()
-                val mins = totalSeconds / 60
-                val secs = totalSeconds % 60
+                // SMART TIME FORMATTING (Increasing Order)
+                val days = elapsedSeconds / 86400
+                val hours = (elapsedSeconds % 86400) / 3600
+                val mins = (elapsedSeconds % 3600) / 60
+                val secs = elapsedSeconds % 60
                 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(45.dp)
-                    ) {
-                        Text(
-                            text = "%02d".format(mins),
-                            color = primaryColor,
-                            maxLines = 1, softWrap = false,
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontFeatureSettings = "tnum"
-                            ),
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "min",
-                            color = greyColor,
-                            softWrap = false,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
-                        )
-                    }
-
-                    Text(
-                        text = " : ",
-                        color = primaryColor,
-                        maxLines = 1,
-                        softWrap = false,
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier
-                            .padding(horizontal = 4.dp)
-                            .offset(y = (-4).dp)
-                    )
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(45.dp)
-                    ) {
-                        Text(
-                            text = "%02d".format(secs),
-                            color = primaryColor,
-                            maxLines = 1,
-                            softWrap = false,
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontFeatureSettings = "tnum"
-                            ),
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "sec",
-                            color = greyColor,
-                            softWrap = false,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
-                        )
+                    when {
+                        days > 0 -> {
+                            TimeUnitColumn(value = days, label = "day", primaryColor = primaryColor, greyColor = greyColor)
+                            TimeDivider(primaryColor = primaryColor)
+                            TimeUnitColumn(value = hours, label = "hr", primaryColor = primaryColor, greyColor = greyColor)
+                        }
+                        hours > 0 -> {
+                            TimeUnitColumn(value = hours, label = "hr", primaryColor = primaryColor, greyColor = greyColor)
+                            TimeDivider(primaryColor = primaryColor)
+                            TimeUnitColumn(value = mins, label = "min", primaryColor = primaryColor, greyColor = greyColor)
+                        }
+                        else -> {
+                            TimeUnitColumn(value = mins, label = "min", primaryColor = primaryColor, greyColor = greyColor)
+                            TimeDivider(primaryColor = primaryColor)
+                            TimeUnitColumn(value = secs, label = "sec", primaryColor = primaryColor, greyColor = greyColor)
+                        }
                     }
                 }
             }
@@ -625,10 +592,57 @@ fun CenterButton(
     }
 }
 
+@Composable
+fun TimeUnitColumn(value: Long, label: String, primaryColor: Color, greyColor: Color) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(45.dp)
+    ) {
+        Text(
+            text = "%02d".format(value),
+            color = primaryColor,
+            maxLines = 1, softWrap = false,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.Bold,
+                fontFeatureSettings = "tnum"
+            ),
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            color = greyColor,
+            softWrap = false,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
+        )
+    }
+}
+
+@Composable
+fun TimeDivider(primaryColor: Color) {
+    Text(
+        text = " : ",
+        color = primaryColor,
+        maxLines = 1,
+        softWrap = false,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier
+            .padding(horizontal = 4.dp)
+            .offset(y = (-4).dp)
+    )
+}
+
 @Preview(showBackground = true, name = "Home with Empty Modes")
 @Composable
 fun PreviewHomeModes() {
     MaterialTheme {
-        HomeContent(isRunning = false, progress = 0f, modes = emptyList(), onToggle = {}, onCreateModeClick = {}, onModeToggle = {_,_ ->})
+        HomeContent(
+            isRunning = false, 
+            progress = 0f, 
+            elapsedSeconds = 0, 
+            modes = emptyList(), 
+            onToggle = {}, 
+            onCreateModeClick = {}, 
+            onModeToggle = {_,_ ->}
+        )
     }
 }

@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import com.example.parentalcontrol.model.Schedule
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.text.SimpleDateFormat
+import java.util.*
 
 data class AppGroup(
     val name: String,
@@ -155,11 +157,44 @@ open class PreferenceManager(context: Context?) {
             prefs?.edit()?.putString("schedules", json)?.apply()
         }
 
+    fun getActiveSchedule(): Schedule? {
+        val now = Calendar.getInstance()
+        // Format to full uppercase day name (e.g., "MONDAY") to match identifiers in CreateScheduleBottomSheet
+        val currentDay = SimpleDateFormat("EEEE", Locale.getDefault()).format(now.time).uppercase()
+        
+        return schedules.find { schedule ->
+            if (!schedule.isEnabled) return@find false
+            if (!schedule.days.contains(currentDay)) return@find false
+            
+            val start = schedule.startTime
+            val end = schedule.endTime
+            
+            val nowTime = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+            val startTime = start.get(Calendar.HOUR_OF_DAY) * 60 + start.get(Calendar.MINUTE)
+            val endTime = end.get(Calendar.HOUR_OF_DAY) * 60 + end.get(Calendar.MINUTE)
+            
+            if (startTime < endTime) {
+                nowTime in startTime until endTime
+            } else if (startTime > endTime) {
+                // Crosses midnight
+                nowTime >= startTime || nowTime < endTime
+            } else {
+                // No end time or same time - handle as manually active if toggle is on
+                schedule.isEnabled
+            }
+        }
+    }
+
     fun isAppRestricted(packageName: String): Boolean {
         val inActiveMode = modes.any { it.isEnabled && it.packageNames.contains(packageName) }
+        
+        val activeSchedule = getActiveSchedule()
+        val inActiveSchedule = activeSchedule?.mode?.packageNames?.contains(packageName) ?: false
+
         return restrictedApps.contains(packageName) || 
                appGroups.any { group -> group.isEnabled && group.packageNames.contains(packageName) } ||
-               inActiveMode
+               inActiveMode ||
+               inActiveSchedule
     }
 
     fun addCapturedNotification(packageName: String, title: String, content: String) {

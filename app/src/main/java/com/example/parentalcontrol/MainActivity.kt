@@ -13,20 +13,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
@@ -36,13 +31,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -57,6 +49,7 @@ import com.example.parentalcontrol.utils.PreferenceManager
 import com.example.parentalcontrol.utils.Mode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.*
 
 
 class MainActivity : ComponentActivity() {
@@ -219,7 +212,6 @@ class MainActivity : ComponentActivity() {
         val isCurrentlyUnlocked = preferenceManager.isCurrentlyUnlocked()
         val context = LocalContext.current
 
-        var allPermissionsGranted by remember { mutableStateOf(areAllPermissionsGranted(context)) }
         var hasTappedContinue by remember { mutableStateOf(preferenceManager.isPermissionOnboarded) }
 
         val lifecycleOwner = LocalLifecycleOwner.current
@@ -227,7 +219,7 @@ class MainActivity : ComponentActivity() {
         DisposableEffect(lifecycleOwner) {
             val observer = LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_RESUME) {
-                    allPermissionsGranted = areAllPermissionsGranted(context)
+                    // Update internal permission status if needed, but don't force a screen jump here
                 }
             }
             lifecycleOwner.lifecycle.addObserver(observer)
@@ -236,20 +228,30 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (!allPermissionsGranted || !hasTappedContinue) {
+        // --- NAVIGATION LOGIC ---
+        
+        // Priority 1: Blocking takes absolute priority (only when triggered by AppBlockerService)
+        if (isBlocked && !isCurrentlyUnlocked) {
+            LockScreenUI()
+            BackHandler(enabled = true) { /* Block back button when on lock screen */ }
+        }
+        // Priority 2: Permission screen MUST be explicitly completed before the dashboard is accessible
+        else if (!hasTappedContinue) {
             PermissionScreen(
                 preferenceManager = preferenceManager,
                 onContinue = {
-                    if (allPermissionsGranted) {
+                    // This is the ONLY place where we advance from the Permission screen
+                    if (areAllPermissionsGranted(context)) {
                         preferenceManager.isPermissionOnboarded = true
                         hasTappedContinue = true
+                    } else {
+                        Toast.makeText(context, "Please grant all permissions first.", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
-        } else if (isBlocked && !isCurrentlyUnlocked) {
-            LockScreenUI()
-            BackHandler(enabled = true) { /* Block */ }
-        } else if (isAppListOpen) {
+        }
+        // Priority 3: Normal App Screens
+        else if (isAppListOpen) {
             YourDistractionsScreen(
                 initialSelectedApps = pendingSelectedApps,
                 onBack = { 
@@ -328,17 +330,10 @@ class MainActivity : ComponentActivity() {
                                             isAppListOpen = true
                                         }
                                     )
-                                    LaunchedEffect(preferenceManager.isServiceRunning) {
-                                        if (preferenceManager.isServiceRunning) startForegroundService()
-                                        else stopForegroundService()
-                                    }
                                 }
-//                                2 -> GroupManagementScreen(preferenceManager)
                                 3 -> {
                                     isHistoryOpen = true
                                 }
-//                                4 -> UsageScreen(preferenceManager)
-//                                5 -> RestrictedNotificationsScreen(preferenceManager)
                                 7 -> SettingScreen(onNavigate = {
                                     when (it) {
                                         2 -> isSchedulesOpen = true
@@ -371,36 +366,102 @@ class MainActivity : ComponentActivity() {
         onSelectAppClick: (String, Set<String>) -> Unit
     ) {
         var modes by remember { mutableStateOf(preferenceManager.modes) }
-        var isRunning by remember { mutableStateOf(preferenceManager.isServiceRunning) }
+        var isManualRunning by remember { mutableStateOf(preferenceManager.isServiceRunning) }
         var currentProgress by remember { mutableFloatStateOf(0f) }
+        var elapsedSeconds by remember { mutableLongStateOf(0L) }
         val context = LocalContext.current
 
-        LaunchedEffect(isRunning) {
-            if (isRunning) {
-                while (true) {
+        // Use a state-backed derived value for total protection status
+        var activeSchedule by remember { mutableStateOf(preferenceManager.getActiveSchedule()) }
+        val isProtectionActive = isManualRunning || activeSchedule != null
+
+        // Sync background service with combined protection state
+        LaunchedEffect(isProtectionActive) {
+            if (isProtectionActive) startForegroundService()
+            else stopForegroundService()
+        }
+
+        // Central timer loop for both manual and scheduled modes
+        LaunchedEffect(Unit) {
+            while (true) {
+                // Update schedule state every second
+                activeSchedule = preferenceManager.getActiveSchedule()
+                val currentSchedule = activeSchedule
+                
+                if (currentSchedule != null) {
+                    // --- INCREASING Scheduled Progress ---
+                    val now = Calendar.getInstance()
+                    val start = currentSchedule.startTime
+                    val end = currentSchedule.endTime
+                    
+                    val nowSecs = (now.get(Calendar.HOUR_OF_DAY) * 3600) + (now.get(Calendar.MINUTE) * 60) + now.get(Calendar.SECOND)
+                    var startSecs = (start.get(Calendar.HOUR_OF_DAY) * 3600) + (start.get(Calendar.MINUTE) * 60)
+                    var endSecs = (end.get(Calendar.HOUR_OF_DAY) * 3600) + (end.get(Calendar.MINUTE) * 60)
+                    
+                    if (endSecs <= startSecs) endSecs += 86400 // Handle midnight cross
+                    
+                    val totalDuration = endSecs - startSecs
+                    var elapsed = nowSecs - startSecs
+                    if (elapsed < 0) elapsed += 86400 // Handled for early check
+                    
+                    if (totalDuration > 0) {
+                        currentProgress = (elapsed.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+                        elapsedSeconds = elapsed.toLong()
+                    } else {
+                        // NO END TIME (Start and End same): Use 1-hour increasing session loop
+                        val hourElapsed = (System.currentTimeMillis() / 1000) % 3600
+                        currentProgress = hourElapsed.toFloat() / 3600f
+                        elapsedSeconds = hourElapsed
+                    }
+                } else if (isManualRunning) {
+                    // --- Manual Mode Increasing Progress (1-hour cyclic sessions) ---
                     val startTime = preferenceManager.lastServiceStartTime
-                    val elapsed = System.currentTimeMillis() - startTime
-                    val oneHourMs = 3600000L
-                    currentProgress = (elapsed % oneHourMs).toFloat() / oneHourMs.toFloat()
-                    delay(1000)
+                    val totalElapsedSecs = (System.currentTimeMillis() - startTime) / 1000
+                    val hourElapsed = totalElapsedSecs % 3600
+                    
+                    currentProgress = hourElapsed.toFloat() / 3600f
+                    elapsedSeconds = hourElapsed
+                } else {
+                    currentProgress = 0f
+                    elapsedSeconds = 0L
                 }
-            } else {
-                currentProgress = 0f
+                delay(1000)
             }
         }
 
         HomeContent(
-            isRunning = isRunning,
+            isRunning = isProtectionActive,
             progress = currentProgress,
+            elapsedSeconds = elapsedSeconds,
             modes = modes,
             onToggle = {
-                if (!isRunning && modes.none { it.isEnabled }) {
-                    Toast.makeText(context, "Please select a mode first to start", Toast.LENGTH_SHORT).show()
+                if (isProtectionActive) {
+                    // STOP LOGIC: Turn off manual protection AND any active schedule
+                    preferenceManager.isServiceRunning = false
+                    isManualRunning = false
+                    
+                    // Automatically disable the active schedule if one exists
+                    activeSchedule?.let { schedule ->
+                        val updatedSchedules = preferenceManager.schedules.map {
+                            if (it.id == schedule.id) it.copy(isEnabled = false) else it
+                        }
+                        preferenceManager.schedules = updatedSchedules
+                    }
+                    
+                    // Also disable all manual modes
+                    val updatedModes = modes.map { it.copy(isEnabled = false) }
+                    preferenceManager.modes = updatedModes
+                    modes = updatedModes
+                    
+                    Toast.makeText(context, "Protection Stopped", Toast.LENGTH_SHORT).show()
                 } else {
-                    val newState = !isRunning
-                    preferenceManager.isServiceRunning = newState
-                    isRunning = newState
-                    if (newState) {
+                    // START LOGIC: Manual Start
+                    if (modes.none { it.isEnabled }) {
+                        Toast.makeText(context, "Please select a mode first to start", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val newState = true
+                        preferenceManager.isServiceRunning = newState
+                        isManualRunning = newState
                         preferenceManager.lastServiceStartTime = System.currentTimeMillis()
                     }
                 }
@@ -450,7 +511,7 @@ class LiquidCurvedShape(
     private val curveControl: Dp
 ) : Shape {
     override fun createOutline(
-        size: Size,
+        shapeSize: Size,
         layoutDirection: LayoutDirection,
         density: Density
     ): Outline {
@@ -460,25 +521,25 @@ class LiquidCurvedShape(
         val corner = with(density) { 30.dp.toPx() }
 
         val path = Path().apply {
-            moveTo(0f, size.height)
-            lineTo(size.width, size.height)
-            lineTo(size.width, size.height - bH + corner)
-            quadraticBezierTo(size.width, size.height - bH, size.width - corner, size.height - bH)
+            moveTo(0f, shapeSize.height)
+            lineTo(shapeSize.width, shapeSize.height)
+            lineTo(shapeSize.width, shapeSize.height - bH + corner)
+            quadraticTo(shapeSize.width, shapeSize.height - bH, shapeSize.width - corner, shapeSize.height - bH)
 
-            lineTo(size.width / 2 + bR + cC, size.height - bH)
+            lineTo(shapeSize.width / 2 + bR + cC, shapeSize.height - bH)
             cubicTo(
-                size.width / 2 + bR, size.height - bH,
-                size.width / 2 + bR, 0f,
-                size.width / 2, 0f
+                shapeSize.width / 2 + bR, shapeSize.height - bH,
+                shapeSize.width / 2 + bR, 0f,
+                shapeSize.width / 2, 0f
             )
             cubicTo(
-                size.width / 2 - bR, 0f,
-                size.width / 2 - bR, size.height - bH,
-                size.width / 2 - bR - cC, size.height - bH
+                shapeSize.width / 2 - bR, 0f,
+                shapeSize.width / 2 - bR, shapeSize.height - bH,
+                shapeSize.width / 2 - bR - cC, shapeSize.height - bH
             )
 
-            lineTo(corner, size.height - bH)
-            quadraticBezierTo(0f, size.height - bH, 0f, size.height - bH + corner)
+            lineTo(corner, shapeSize.height - bH)
+            quadraticTo(0f, shapeSize.height - bH, 0f, shapeSize.height - bH + corner)
             close()
         }
         return Outline.Generic(path)
@@ -494,9 +555,9 @@ fun CurvedBottomNavigation(
     val primaryColor = colorResource(id = R.color.primaryColor)
     val greyColor = colorResource(id = R.color.greyColor)
 
-    val barHeight = 60.dp
-    val bulgeRadius = 40.dp
-    val curveControl = 20.dp
+    val barHeightDp = 60.dp
+    val bulgeRadiusDp = 40.dp
+    val curveControlDp = 20.dp
 
     Box(
         modifier = Modifier
@@ -509,9 +570,9 @@ fun CurvedBottomNavigation(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(100.dp)
-                .shadow(12.dp, LiquidCurvedShape(barHeight, bulgeRadius, curveControl)),
+                .shadow(12.dp, LiquidCurvedShape(barHeightDp, bulgeRadiusDp, curveControlDp)),
             color = Color.White,
-            shape = LiquidCurvedShape(barHeight, bulgeRadius, curveControl)
+            shape = LiquidCurvedShape(barHeightDp, bulgeRadiusDp, curveControlDp)
         ) {}
 
         FloatingActionButton(
@@ -536,7 +597,7 @@ fun CurvedBottomNavigation(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(barHeight),
+                .height(60.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceAround
         ) {

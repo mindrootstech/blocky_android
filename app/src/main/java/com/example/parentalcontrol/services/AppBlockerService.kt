@@ -18,10 +18,7 @@ class AppBlockerService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        // IMPORTANT: We only process events and block apps IF the user 
-        // has explicitly enabled "Start Protection" from the Home Screen.
-        // Granting the permission alone will not trigger any blocking.
-        if (!::preferenceManager.isInitialized || !preferenceManager.isServiceRunning) return
+        if (!::preferenceManager.isInitialized) return
 
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: return
@@ -32,7 +29,9 @@ class AppBlockerService : AccessibilityService() {
             // Skip blocking if the device is currently temporarily unlocked via NFC
             if (preferenceManager.isCurrentlyUnlocked()) return
 
+            // Check if the current app should be restricted (manual or scheduled)
             if (preferenceManager.isAppRestricted(packageName)) {
+                Log.d("AppBlockerService", "Restricting access to: $packageName")
                 redirectToLockScreen()
             }
         }
