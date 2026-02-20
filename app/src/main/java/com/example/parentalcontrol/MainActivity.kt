@@ -230,7 +230,7 @@ class MainActivity : ComponentActivity() {
 
         // --- NAVIGATION LOGIC ---
         
-        // Priority 1: Blocking takes absolute priority (only when triggered by AppBlockerService)
+        // Priority 1: Blocking takes absolute priority (only triggered by AppBlockerService)
         if (isBlocked && !isCurrentlyUnlocked) {
             LockScreenUI()
             BackHandler(enabled = true) { /* Block back button when on lock screen */ }
@@ -437,11 +437,21 @@ class MainActivity : ComponentActivity() {
             onToggle = {
                 if (isProtectionActive) {
                     // STOP LOGIC: Turn off manual protection AND any active schedule
+                    val activeMode = modes.find { it.isEnabled }
+                    val activeSch = preferenceManager.getActiveSchedule()
+                    
+                    // SAVE SESSION TO HISTORY
+                    if (activeSch != null) {
+                        preferenceManager.addDetailedSession(activeSch.name, "SCHEDULE", System.currentTimeMillis() - (elapsedSeconds * 1000))
+                    } else if (isManualRunning && activeMode != null) {
+                        preferenceManager.addDetailedSession(activeMode.name, "MODE", preferenceManager.lastServiceStartTime)
+                    }
+
                     preferenceManager.isServiceRunning = false
                     isManualRunning = false
                     
                     // Automatically disable the active schedule if one exists
-                    activeSchedule?.let { schedule ->
+                    activeSch?.let { schedule ->
                         val updatedSchedules = preferenceManager.schedules.map {
                             if (it.id == schedule.id) it.copy(isEnabled = false) else it
                         }

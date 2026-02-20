@@ -5,9 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,7 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.parentalcontrol.R
+import com.example.parentalcontrol.utils.DetailedSession
 import com.example.parentalcontrol.utils.PreferenceManager
 import java.text.SimpleDateFormat
 import java.util.*
@@ -35,12 +39,12 @@ import java.util.*
 fun HistoryScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
     val primaryColor = colorResource(id = R.color.primaryColor)
     val bgColor = colorResource(id = R.color.neumorphic_bg)
-    val greyColor = colorResource(id = R.color.greyColor)
-    val borderColor = colorResource(id = R.color.borderColor)
     val lightPurpleColor = colorResource(id = R.color.lightPurpleColor)
+    val borderColor = colorResource(id = R.color.borderColor)
 
     var currentMonth by remember { mutableStateOf(Calendar.getInstance()) }
     var expandedMonthDropdown by remember { mutableStateOf(false) }
+    var selectedDaySessions by remember { mutableStateOf<List<DetailedSession>?>(null) }
 
     val todayDate = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date()) }
     val monthYearFormat = remember { SimpleDateFormat("MMM yyyy", Locale.getDefault()) }
@@ -86,17 +90,8 @@ fun HistoryScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Today : ",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = todayDate,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.Black
-                    )
+                    Text(text = "Today : ", style = MaterialTheme.typography.labelSmall, color = Color.Black)
+                    Text(text = todayDate, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color.Black)
                 }
 
                 Box {
@@ -108,17 +103,8 @@ fun HistoryScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
                             .clickable { expandedMonthDropdown = true }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text(
-                            text = monthYearFormat.format(currentMonth.time),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = primaryColor
-                        )
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = null,
-                            tint = primaryColor,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Text(text = monthYearFormat.format(currentMonth.time), style = MaterialTheme.typography.labelSmall, color = primaryColor)
+                        Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = null, tint = primaryColor, modifier = Modifier.size(16.dp))
                     }
 
                     DropdownMenu(
@@ -149,23 +135,29 @@ fun HistoryScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
             }
 
             // Weekday Headers
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
                 listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
-                    Text(
-                        text = day,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center
-                    )
+                    Text(text = day, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                 }
             }
 
             // Calendar Grid
-            CalendarGrid(currentMonth, primaryColor, borderColor, greyColor, preferenceManager)
+            CalendarGrid(
+                currentMonth = currentMonth,
+                primaryColor = primaryColor,
+                borderColor = borderColor,
+                preferenceManager = preferenceManager,
+                onDayClick = { sessions -> selectedDaySessions = sessions }
+            )
         }
+    }
+
+    // Detail Dialog
+    selectedDaySessions?.let { sessions ->
+        SessionDetailDialog(
+            sessions = sessions,
+            onDismiss = { selectedDaySessions = null }
+        )
     }
 }
 
@@ -174,16 +166,17 @@ fun CalendarGrid(
     currentMonth: Calendar,
     primaryColor: Color,
     borderColor: Color,
-    greyColor: Color,
-    preferenceManager: PreferenceManager
+    preferenceManager: PreferenceManager,
+    onDayClick: (List<DetailedSession>) -> Unit
 ) {
     val firstDayOfMonth = (currentMonth.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, 1) }
-    val startDayOfWeek = firstDayOfMonth.get(Calendar.DAY_OF_WEEK) - 1 // 0 = Sunday, 1 = Monday, etc.
+    val startDayOfWeek = firstDayOfMonth.get(Calendar.DAY_OF_WEEK) - 1
     val daysInMonth = currentMonth.getActualMaximum(Calendar.DAY_OF_MONTH)
-    
-    // Total items to show = offset + days
     val totalGridItems = startDayOfWeek + daysInMonth
     val lightPurpleColor = colorResource(id = R.color.lightPurpleColor)
+
+    // Observe changes to detailedSessions
+    val sessions = preferenceManager.detailedSessions
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(7),
@@ -193,15 +186,23 @@ fun CalendarGrid(
     ) {
         items(totalGridItems) { index ->
             if (index < startDayOfWeek) {
-                // Empty spacer for days before the 1st of the month
-                // Synchronized aspectRatio to 0.8f for consistent row height
                 Spacer(modifier = Modifier.aspectRatio(0.8f))
             } else {
                 val day = index - startDayOfWeek + 1
+                val dateCal = currentMonth.clone() as Calendar
+                dateCal.set(Calendar.DAY_OF_MONTH, day)
                 
-                // In a real app, you'd fetch actual history for this day
-                val hasHistory = day % 3 == 0 
-                val usageTime = if (hasHistory) "${(0..3).random()}h ${(0..59).random()}m" else null
+                // Find sessions for this specific day
+                val daySessions = sessions.filter { session ->
+                    val sessionCal = Calendar.getInstance().apply { timeInMillis = session.startTime }
+                    sessionCal.get(Calendar.YEAR) == dateCal.get(Calendar.YEAR) &&
+                    sessionCal.get(Calendar.DAY_OF_YEAR) == dateCal.get(Calendar.DAY_OF_YEAR)
+                }
+
+                val hasHistory = daySessions.isNotEmpty()
+                val totalMs = daySessions.sumOf { it.durationMs }
+                val hours = totalMs / 3600000
+                val mins = (totalMs % 3600000) / 60000
 
                 Box(
                     modifier = Modifier
@@ -209,52 +210,100 @@ fun CalendarGrid(
                         .clip(RoundedCornerShape(2.dp))
                         .background(if (hasHistory) Color.White else lightPurpleColor)
                         .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(2.dp))
+                        .clickable(enabled = hasHistory) { onDayClick(daySessions) }
                         .padding(4.dp)
                 ) {
-                    // Date indicator (top-left)
                     Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(primaryColor),
+                        modifier = Modifier.size(16.dp).clip(CircleShape).background(primaryColor),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = day.toString(),
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
+                        Text(text = day.toString(), color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), fontWeight = FontWeight.Bold)
                     }
 
-                    // Centered content column
                     Column(
                         modifier = Modifier.fillMaxSize().padding(top = 14.dp),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (hasHistory && usageTime != null) {
-                            val timeParts = usageTime.split(" ")
-                            Text(
-                                text = timeParts[0],
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
-                                fontWeight = FontWeight.Medium,
-                            )
-                            Text(
-                                text = timeParts[1],
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                fontWeight = FontWeight.Medium,
-                            )
+                        if (hasHistory) {
+                            Text(text = "${hours}h", style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp), fontWeight = FontWeight.Medium)
+                            Text(text = "${mins}m", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), fontWeight = FontWeight.Medium)
                         } else {
-                            Icon(
-                                painter = painterResource(id = R.drawable.app_icon),
-                                contentDescription = null,
-                                tint = primaryColor,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Icon(painter = painterResource(id = R.drawable.app_icon), contentDescription = null, tint = primaryColor.copy(alpha = 0.3f), modifier = Modifier.size(18.dp))
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SessionDetailDialog(sessions: List<DetailedSession>, onDismiss: () -> Unit) {
+    val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+    val primaryColor = colorResource(id = R.color.primaryColor)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Usage Report",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryColor
+                )
+                Text(
+                    text = dateFormat.format(Date(sessions[0].startTime)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                    items(sessions) { session ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = session.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "${timeFormat.format(Date(session.startTime))} - ${timeFormat.format(Date(session.endTime))}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Gray
+                                )
+                            }
+                            
+                            val h = session.durationMs / 3600000
+                            val m = (session.durationMs % 3600000) / 60000
+                            val s = (session.durationMs % 60000) / 1000
+                            
+                            Text(
+                                text = if (h > 0) "${h}h ${m}m" else "${m}m ${s}s",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = primaryColor
+                            )
+                        }
+                        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                ) {
+                    Text("Close")
                 }
             }
         }

@@ -36,6 +36,8 @@ data class CapturedNotification(
 )
 
 data class DetailedSession(
+    val name: String,
+    val type: String, // "MODE" or "SCHEDULE"
     val startTime: Long,
     val endTime: Long,
     val durationMs: Long
@@ -157,9 +159,19 @@ open class PreferenceManager(context: Context?) {
             prefs?.edit()?.putString("schedules", json)?.apply()
         }
 
+    fun addDetailedSession(name: String, type: String, startTime: Long) {
+        val endTime = System.currentTimeMillis()
+        val duration = endTime - startTime
+        if (duration < 5000) return // Ignore sessions shorter than 5 seconds
+
+        val session = DetailedSession(name, type, startTime, endTime, duration)
+        val current = detailedSessions.toMutableList()
+        current.add(session)
+        detailedSessions = current
+    }
+
     fun getActiveSchedule(): Schedule? {
         val now = Calendar.getInstance()
-        // Format to full uppercase day name (e.g., "MONDAY") to match identifiers in CreateScheduleBottomSheet
         val currentDay = SimpleDateFormat("EEEE", Locale.getDefault()).format(now.time).uppercase()
         
         return schedules.find { schedule ->
@@ -176,10 +188,8 @@ open class PreferenceManager(context: Context?) {
             if (startTime < endTime) {
                 nowTime in startTime until endTime
             } else if (startTime > endTime) {
-                // Crosses midnight
                 nowTime >= startTime || nowTime < endTime
             } else {
-                // No end time or same time - handle as manually active if toggle is on
                 schedule.isEnabled
             }
         }
@@ -187,7 +197,6 @@ open class PreferenceManager(context: Context?) {
 
     fun isAppRestricted(packageName: String): Boolean {
         val inActiveMode = modes.any { it.isEnabled && it.packageNames.contains(packageName) }
-        
         val activeSchedule = getActiveSchedule()
         val inActiveSchedule = activeSchedule?.mode?.packageNames?.contains(packageName) ?: false
 
