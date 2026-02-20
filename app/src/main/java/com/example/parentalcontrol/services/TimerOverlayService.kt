@@ -15,6 +15,7 @@ import android.view.WindowManager
 import android.widget.TextView
 import com.example.parentalcontrol.R
 import com.example.parentalcontrol.utils.PreferenceManager
+import java.util.Calendar
 import java.util.Locale
 
 class TimerOverlayService : Service() {
@@ -25,23 +26,55 @@ class TimerOverlayService : Service() {
     private var timerTextView: TextView? = null
     
     private val handler = Handler(Looper.getMainLooper())
-    private var startTime = 0L
     
     private val timerRunnable = object : Runnable {
         override fun run() {
-            // Update timer based on when the service was actually started in preferences
-            val start = if (preferenceManager.lastServiceStartTime > 0) 
-                preferenceManager.lastServiceStartTime 
-            else startTime
+            val activeSchedule = preferenceManager.getActiveSchedule()
             
-            val millis = System.currentTimeMillis() - start
-            val seconds = (millis / 1000).toInt()
-            val minutes = seconds / 60
-            val hours = minutes / 60
+            val startMs = when {
+                activeSchedule != null -> {
+                    // Use schedule's start time for accurate elapsed count
+                    val start = activeSchedule.startTime
+                    val now = Calendar.getInstance()
+                    val startCal = now.clone() as Calendar
+                    startCal.set(Calendar.HOUR_OF_DAY, start.get(Calendar.HOUR_OF_DAY))
+                    startCal.set(Calendar.MINUTE, start.get(Calendar.MINUTE))
+                    startCal.set(Calendar.SECOND, 0)
+                    if (startCal.after(now)) startCal.add(Calendar.DAY_OF_YEAR, -1)
+                    startCal.timeInMillis
+                }
+                preferenceManager.isServiceRunning -> {
+                    // Use manual start time
+                    if (preferenceManager.lastServiceStartTime > 0) 
+                        preferenceManager.lastServiceStartTime 
+                    else System.currentTimeMillis()
+                }
+                else -> System.currentTimeMillis()
+            }
             
-            val timeString = String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes % 60, seconds % 60)
+            val elapsedMs = System.currentTimeMillis() - startMs
+            val totalSeconds = (elapsedMs / 1000).coerceAtLeast(0)
+            
+            // Apply 1-hour session loop for manual/no-end-time modes
+            val displayedSeconds = if (activeSchedule == null || 
+                (activeSchedule.startTime.get(Calendar.HOUR_OF_DAY) == activeSchedule.endTime.get(Calendar.HOUR_OF_DAY) && 
+                 activeSchedule.startTime.get(Calendar.MINUTE) == activeSchedule.endTime.get(Calendar.MINUTE))) {
+                totalSeconds % 3600
+            } else {
+                totalSeconds
+            }
+
+            val hours = displayedSeconds / 3600
+            val minutes = (displayedSeconds % 3600) / 60
+            val seconds = displayedSeconds % 60
+            
+            val timeString = if (hours > 0) {
+                String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+            } else {
+                String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+            }
+            
             timerTextView?.text = timeString
-            
             handler.postDelayed(this, 1000)
         }
     }
@@ -52,14 +85,14 @@ class TimerOverlayService : Service() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         preferenceManager = PreferenceManager(this)
-        startTime = System.currentTimeMillis()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         
-        // IMPORTANT: Never show overlay if protection is disabled in settings
-        if (!preferenceManager.isServiceRunning) {
+        val isAnyProtectionActive = preferenceManager.isServiceRunning || preferenceManager.getActiveSchedule() != null
+
+        if (!isAnyProtectionActive) {
             hideOverlay()
             stopSelf()
             return START_NOT_STICKY
@@ -86,7 +119,7 @@ class TimerOverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = 120 // Slightly adjusted position
+            y = 120
         }
 
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
@@ -107,9 +140,7 @@ class TimerOverlayService : Service() {
         if (overlayView != null) {
             try {
                 windowManager.removeView(overlayView)
-            } catch (e: Exception) {
-                // View might already be gone
-            }
+            } catch (e: Exception) { }
             overlayView = null
         }
     }
