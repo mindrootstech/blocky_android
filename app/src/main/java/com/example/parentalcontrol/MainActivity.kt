@@ -1,8 +1,11 @@
 package com.example.parentalcontrol
 
 import android.content.Intent
+import android.nfc.NdefMessage
+import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.Tag
+import android.nfc.tech.Ndef
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -47,10 +50,17 @@ import com.example.parentalcontrol.ui.screens.*
 import com.example.parentalcontrol.ui.theme.ParentalcontrolTheme
 import com.example.parentalcontrol.utils.PreferenceManager
 import com.example.parentalcontrol.utils.Mode
+import com.example.parentalcontrol.model.Schedule
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.*
 
+
+enum class ScanPurpose {
+    START_PROTECTION,
+    STOP_PROTECTION,
+    UNLOCK_SCREEN,
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -59,6 +69,10 @@ class MainActivity : ComponentActivity() {
 
     private var shouldShowLockScreen by mutableStateOf(false)
     private var isReady by mutableStateOf(false)
+
+    private var scanPurpose by mutableStateOf<ScanPurpose?>(null)
+    private var isNfcVerified by mutableStateOf(false)
+    private var onNfcVerifiedAction by mutableStateOf<(() -> Unit)?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -107,7 +121,63 @@ class MainActivity : ComponentActivity() {
             }
 
             val tagId = tag?.id?.joinToString("") { "%02x".format(it) }
-            if (tagId != null) handleNfcScanned(tagId)
+            Log.d("ParentalControl", "TAG ID (Hardware): $tagId")
+
+            var scannedNdefValue: String? = null
+
+            // 1. Try to get NDEF messages from the Intent
+            val rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
+            if (rawMsgs != null) {
+                rawMsgs.forEach {
+                    val msg = it as? NdefMessage
+                    msg?.records?.forEach { record ->
+                        val text = parseNdefRecord(record)
+                        if (text != null) scannedNdefValue = text
+                    }
+                }
+            } else {
+                // 2. If Intent extras are empty, try to read directly from the Tag using Ndef tech
+                val ndef = Ndef.get(tag)
+                try {
+                    ndef?.connect()
+                    val msg = ndef?.ndefMessage
+                    msg?.records?.forEach { record ->
+                        val text = parseNdefRecord(record)
+                        if (text != null) scannedNdefValue = text
+                    }
+                } catch (e: Exception) {
+                    Log.e("ParentalControl", "Error reading NDEF from tech", e)
+                } finally {
+                    try { ndef?.close() } catch (e: Exception) {}
+                }
+            }
+
+            handleNfcScanned(scannedNdefValue)
+        }
+    }
+
+    private fun parseNdefRecord(record: NdefRecord): String? {
+        return try {
+            val payload = record.payload
+            if (payload.isEmpty()) return null
+
+            // Try standard Text parsing (with header)
+            val statusByte = payload[0].toInt()
+            val langCodeLen = statusByte and 0x3F
+            var parsedText: String? = null
+
+            if (langCodeLen < payload.size) {
+                parsedText = String(payload, langCodeLen + 1, payload.size - langCodeLen - 1, Charsets.UTF_8)
+                Log.d("ParentalControl", "NDEF Parsed: $parsedText")
+            }
+
+            // Also check raw if parsing failed or returned empty
+            val rawText = String(payload, Charsets.UTF_8)
+            Log.d("ParentalControl", "NDEF Raw: $rawText")
+
+            parsedText ?: rawText
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -148,9 +218,20 @@ class MainActivity : ComponentActivity() {
         stopService(intent)
     }
 
-    private fun handleNfcScanned(tagId: String) {
-        Log.d("ParentalControl", "NFC Tag detected: $tagId")
-        performUnlock()
+    private fun handleNfcScanned(scannedValue: String?) {
+        Log.d("ParentalControl", "NFC Scanned Value: $scannedValue")
+        val expectedValue = PreferenceManager.NFC_VERIFICATION_VALUE
+
+        if (scannedValue != null && scannedValue.contains(expectedValue)) {
+            isNfcVerified = true
+            
+            // If it's a passive scan (e.g. while on Lock Screen), trigger unlock directly
+            if (scanPurpose == null && shouldShowLockScreen) {
+                performUnlock()
+            }
+        } else {
+            Toast.makeText(this, "Invalid NFC Tag Value!", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun performUnlock() {
@@ -195,7 +276,6 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun MainScreen(isBlocked: Boolean) {
         var currentTab by remember { mutableIntStateOf(0) }
-        var showScanSheet by remember { mutableStateOf(false) }
         
         // Navigation states for full-screen screens
         var isAppListOpen by remember { mutableStateOf(false) }
@@ -215,6 +295,89 @@ class MainActivity : ComponentActivity() {
         var hasTappedContinue by remember { mutableStateOf(preferenceManager.isPermissionOnboarded) }
 
         val lifecycleOwner = LocalLifecycleOwner.current
+
+        // Shared Protection States
+        var modes by remember { mutableStateOf(preferenceManager.modes) }
+        var isManualRunning by remember { mutableStateOf(preferenceManager.isServiceRunning) }
+        var currentProgress by remember { mutableFloatStateOf(0f) }
+        var elapsedSeconds by remember { mutableLongStateOf(0L) }
+        var activeSchedule by remember { mutableStateOf(preferenceManager.getActiveSchedule()) }
+        val isProtectionActive = isManualRunning || activeSchedule != null
+
+        // Timer and Service syncing
+        LaunchedEffect(isProtectionActive) {
+            if (isProtectionActive) startForegroundService()
+            else stopForegroundService()
+        }
+
+        LaunchedEffect(Unit) {
+            while (true) {
+                activeSchedule = preferenceManager.getActiveSchedule()
+                val currentSchedule = activeSchedule
+
+                if (currentSchedule != null) {
+                    val now = Calendar.getInstance()
+                    val start = currentSchedule.startTime
+                    val end = currentSchedule.endTime
+                    val nowSecs = (now.get(Calendar.HOUR_OF_DAY) * 3600) + (now.get(Calendar.MINUTE) * 60) + now.get(Calendar.SECOND)
+                    var startSecs = (start.get(Calendar.HOUR_OF_DAY) * 3600) + (start.get(Calendar.MINUTE) * 60)
+                    var endSecs = (end.get(Calendar.HOUR_OF_DAY) * 3600) + (end.get(Calendar.MINUTE) * 60)
+                    if (endSecs <= startSecs) endSecs += 86400
+                    val totalDuration = endSecs - startSecs
+                    var elapsed = nowSecs - startSecs
+                    if (elapsed < 0) elapsed += 86400
+                    if (totalDuration > 0) {
+                        currentProgress = (elapsed.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+                        elapsedSeconds = elapsed.toLong()
+                    } else {
+                        val hourElapsed = (System.currentTimeMillis() / 1000) % 3600
+                        currentProgress = hourElapsed.toFloat() / 3600f
+                        elapsedSeconds = hourElapsed
+                    }
+                } else if (isManualRunning) {
+                    val startTime = preferenceManager.lastServiceStartTime
+                    val totalElapsedSecs = (System.currentTimeMillis() - startTime) / 1000
+                    val hourElapsed = totalElapsedSecs % 3600
+                    currentProgress = hourElapsed.toFloat() / 3600f
+                    elapsedSeconds = hourElapsed
+                } else {
+                    currentProgress = 0f
+                    elapsedSeconds = 0L
+                }
+                delay(1000)
+            }
+        }
+
+        val onToggleProtection = {
+            if (isProtectionActive) {
+                scanPurpose = ScanPurpose.STOP_PROTECTION
+                onNfcVerifiedAction = {
+                    preferenceManager.isServiceRunning = false
+                    isManualRunning = false
+                    activeSchedule?.let { schedule ->
+                        val updatedSchedules = preferenceManager.schedules.map {
+                            if (it.id == schedule.id) it.copy(isEnabled = false) else it
+                        }
+                        preferenceManager.schedules = updatedSchedules
+                    }
+                    val updatedModes = modes.map { it.copy(isEnabled = false) }
+                    preferenceManager.modes = updatedModes
+                    modes = updatedModes
+                    Toast.makeText(context, "Protection Stopped", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                if (modes.none { it.isEnabled }) {
+                    Toast.makeText(context, "Please select a mode first to start", Toast.LENGTH_SHORT).show()
+                } else {
+                    scanPurpose = ScanPurpose.START_PROTECTION
+                    onNfcVerifiedAction = {
+                        preferenceManager.isServiceRunning = true
+                        isManualRunning = true
+                        preferenceManager.lastServiceStartTime = System.currentTimeMillis()
+                    }
+                }
+            }
+        }
 
         DisposableEffect(lifecycleOwner) {
             val observer = LifecycleEventObserver { _, event ->
@@ -302,7 +465,7 @@ class MainActivity : ComponentActivity() {
                     CurvedBottomNavigation(
                         selectedTab = if (currentTab == 7) 7 else if (currentTab == 0) 0 else -1,
                         onTabSelected = { currentTab = it },
-                        onFabClick = { showScanSheet = true }
+                        onFabClick = onToggleProtection
                     )
                 }
             ) { innerPadding ->
@@ -317,6 +480,13 @@ class MainActivity : ComponentActivity() {
                                 0 -> {
                                     HomeScreenContent(
                                         preferenceManager = preferenceManager,
+                                        modes = modes,
+                                        isManualRunning = isManualRunning,
+                                        activeSchedule = activeSchedule,
+                                        currentProgress = currentProgress,
+                                        elapsedSeconds = elapsedSeconds,
+                                        onModesChange = { modes = it },
+                                        onToggleProtection = onToggleProtection,
                                         showCreateSheet = showCreateModeSheet,
                                         pendingModeName = pendingModeName,
                                         pendingSelectedApps = pendingSelectedApps,
@@ -347,8 +517,29 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                if (showScanSheet) {
-                    ReadyToScanBottomSheet(onDismiss = { showScanSheet = false })
+                if (scanPurpose != null) {
+                    val titleMessage = when (scanPurpose) {
+                        ScanPurpose.START_PROTECTION -> "Register NFC" to "Scan your NFC tag to start protection"
+                        ScanPurpose.STOP_PROTECTION -> "Verify NFC" to "Scan the same NFC tag to stop protection"
+                        ScanPurpose.UNLOCK_SCREEN -> "Quick Unlock" to "Scan your NFC tag to unlock"
+                        else -> "Ready to Scan" to "Tap the top of your phone to your brick"
+                    }
+                    ReadyToScanBottomSheet(
+                        isVerified = isNfcVerified,
+                        title = titleMessage.first,
+                        message = titleMessage.second,
+                        onDismiss = { 
+                            if (isNfcVerified) {
+                                if (scanPurpose == ScanPurpose.UNLOCK_SCREEN) {
+                                    performUnlock()
+                                } else {
+                                    onNfcVerifiedAction?.invoke()
+                                }
+                            }
+                            scanPurpose = null 
+                            isNfcVerified = false
+                        }
+                    )
                 }
             }
         }
@@ -357,6 +548,13 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun HomeScreenContent(
         preferenceManager: PreferenceManager,
+        modes: List<Mode>,
+        isManualRunning: Boolean,
+        activeSchedule: Schedule?,
+        currentProgress: Float,
+        elapsedSeconds: Long,
+        onModesChange: (List<Mode>) -> Unit,
+        onToggleProtection: () -> Unit,
         showCreateSheet: Boolean,
         pendingModeName: String,
         pendingSelectedApps: Set<String>,
@@ -365,107 +563,14 @@ class MainActivity : ComponentActivity() {
         onPendingSelectedAppsChange: (Set<String>) -> Unit,
         onSelectAppClick: (String, Set<String>) -> Unit
     ) {
-        var modes by remember { mutableStateOf(preferenceManager.modes) }
-        var isManualRunning by remember { mutableStateOf(preferenceManager.isServiceRunning) }
-        var currentProgress by remember { mutableFloatStateOf(0f) }
-        var elapsedSeconds by remember { mutableLongStateOf(0L) }
-        val context = LocalContext.current
-
-        // Use a state-backed derived value for total protection status
-        var activeSchedule by remember { mutableStateOf(preferenceManager.getActiveSchedule()) }
         val isProtectionActive = isManualRunning || activeSchedule != null
-
-        // Sync background service with combined protection state
-        LaunchedEffect(isProtectionActive) {
-            if (isProtectionActive) startForegroundService()
-            else stopForegroundService()
-        }
-
-        // Central timer loop for both manual and scheduled modes
-        LaunchedEffect(Unit) {
-            while (true) {
-                // Update schedule state every second
-                activeSchedule = preferenceManager.getActiveSchedule()
-                val currentSchedule = activeSchedule
-
-                if (currentSchedule != null) {
-                    // --- INCREASING Scheduled Progress ---
-                    val now = Calendar.getInstance()
-                    val start = currentSchedule.startTime
-                    val end = currentSchedule.endTime
-
-                    val nowSecs = (now.get(Calendar.HOUR_OF_DAY) * 3600) + (now.get(Calendar.MINUTE) * 60) + now.get(Calendar.SECOND)
-                    var startSecs = (start.get(Calendar.HOUR_OF_DAY) * 3600) + (start.get(Calendar.MINUTE) * 60)
-                    var endSecs = (end.get(Calendar.HOUR_OF_DAY) * 3600) + (end.get(Calendar.MINUTE) * 60)
-
-                    if (endSecs <= startSecs) endSecs += 86400 // Handle midnight cross
-
-                    val totalDuration = endSecs - startSecs
-                    var elapsed = nowSecs - startSecs
-                    if (elapsed < 0) elapsed += 86400 // Handled for early check
-
-                    if (totalDuration > 0) {
-                        currentProgress = (elapsed.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
-                        elapsedSeconds = elapsed.toLong()
-                    } else {
-                        // NO END TIME (Start and End same): Use 1-hour increasing session loop
-                        val hourElapsed = (System.currentTimeMillis() / 1000) % 3600
-                        currentProgress = hourElapsed.toFloat() / 3600f
-                        elapsedSeconds = hourElapsed
-                    }
-                } else if (isManualRunning) {
-                    // --- Manual Mode Increasing Progress (1-hour cyclic sessions) ---
-                    val startTime = preferenceManager.lastServiceStartTime
-                    val totalElapsedSecs = (System.currentTimeMillis() - startTime) / 1000
-                    val hourElapsed = totalElapsedSecs % 3600
-
-                    currentProgress = hourElapsed.toFloat() / 3600f
-                    elapsedSeconds = hourElapsed
-                } else {
-                    currentProgress = 0f
-                    elapsedSeconds = 0L
-                }
-                delay(1000)
-            }
-        }
 
         HomeContent(
             isRunning = isProtectionActive,
             progress = currentProgress,
             elapsedSeconds = elapsedSeconds,
             modes = modes,
-            onToggle = {
-                if (isProtectionActive) {
-                    // STOP LOGIC: Turn off manual protection AND any active schedule
-                    preferenceManager.isServiceRunning = false
-                    isManualRunning = false
-
-                    // Automatically disable the active schedule if one exists
-                    activeSchedule?.let { schedule ->
-                        val updatedSchedules = preferenceManager.schedules.map {
-                            if (it.id == schedule.id) it.copy(isEnabled = false) else it
-                        }
-                        preferenceManager.schedules = updatedSchedules
-                    }
-
-                    // Also disable all manual modes
-                    val updatedModes = modes.map { it.copy(isEnabled = false) }
-                    preferenceManager.modes = updatedModes
-                    modes = updatedModes
-
-                    Toast.makeText(context, "Protection Stopped", Toast.LENGTH_SHORT).show()
-                } else {
-                    // START LOGIC: Manual Start
-                    if (modes.none { it.isEnabled }) {
-                        Toast.makeText(context, "Please select a mode first to start", Toast.LENGTH_SHORT).show()
-                    } else {
-                        val newState = true
-                        preferenceManager.isServiceRunning = newState
-                        isManualRunning = newState
-                        preferenceManager.lastServiceStartTime = System.currentTimeMillis()
-                    }
-                }
-            },
+            onToggle = onToggleProtection,
             onCreateModeClick = {
                 onPendingModeNameChange("")
                 onPendingSelectedAppsChange(emptySet())
@@ -476,7 +581,7 @@ class MainActivity : ComponentActivity() {
                     it.copy(isEnabled = if (it.name == mode.name) enabled else false) 
                 }
                 preferenceManager.modes = updatedModes
-                modes = updatedModes
+                onModesChange(updatedModes)
             }
         )
 
@@ -495,7 +600,7 @@ class MainActivity : ComponentActivity() {
                     val newMode = Mode(name, pendingSelectedApps, false)
                     val updatedModes = modes + newMode
                     preferenceManager.modes = updatedModes
-                    modes = updatedModes
+                    onModesChange(updatedModes)
                     onShowCreateSheetChange(false)
                     onPendingModeNameChange("")
                     onPendingSelectedAppsChange(emptySet())

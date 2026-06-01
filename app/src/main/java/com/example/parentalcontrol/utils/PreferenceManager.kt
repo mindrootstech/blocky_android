@@ -71,6 +71,10 @@ open class PreferenceManager(context: Context?) {
         get() = prefs?.getLong("last_service_start_time", 0L) ?: 0L
         set(value) { prefs?.edit()?.putLong("last_service_start_time", value)?.apply() }
 
+    companion object {
+        const val NFC_VERIFICATION_VALUE = "toggle_bool_variable"
+    }
+
     var isStrictMode: Boolean
         get() = prefs?.getBoolean("is_strict_mode", false) ?: false
         set(value) { prefs?.edit()?.putBoolean("is_strict_mode", value)?.apply() }

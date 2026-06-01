@@ -29,6 +29,7 @@ fun SettingScreen(onNavigate: (Int) -> Unit) {
     val borderColor = Color(0xFFF0F0F0)
     val primaryColor = colorResource(id = R.color.primaryColor)
     val greyColor = colorResource(id = R.color.greyColor)
+    val blackColor = colorResource(id = R.color.blackColor)
 
     Scaffold(
         topBar = {
@@ -44,6 +45,8 @@ fun SettingScreen(onNavigate: (Int) -> Unit) {
                     Text(
                         "Settings",
                         style = MaterialTheme.typography.bodyLarge,
+                        color = blackColor,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -66,7 +69,8 @@ fun SettingScreen(onNavigate: (Int) -> Unit) {
                             Text(
                                 "Blocky Emergency",
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                color = blackColor
                             )
                         },
                         supportingContent = {
@@ -96,7 +100,8 @@ fun SettingScreen(onNavigate: (Int) -> Unit) {
                             Text(
                                 "Strict mode",
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                color = blackColor
                             )
                         },
                         trailingContent = {
@@ -160,20 +165,24 @@ fun SettingsCard(borderColor: Color, content: @Composable () -> Unit) {
 
 @Composable
 fun SettingsNavigationCard(title: String, borderColor: Color, onClick: () -> Unit) {
+    val blackColor = colorResource(id = R.color.blackColor)
+    
     SettingsCard(borderColor) {
         ListItem(
             headlineContent = {
                 Text(
                     title,
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    color = blackColor
                 )
             },
             trailingContent = {
                 Icon(
                     Icons.Default.ChevronRight,
                     contentDescription = null,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(20.dp),
+                    tint = blackColor.copy(alpha = 0.4f)
                 )
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),

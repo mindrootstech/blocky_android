@@ -34,6 +34,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun ReadyToScanBottomSheet(
     isVerified: Boolean = false,
+    title: String = "Ready to Scan",
+    message: String = "Tap the top of your phone to your brick",
     onDismiss: () -> Unit
 ) {
     // skipPartiallyExpanded = true makes the sheet open fully by default
@@ -50,6 +52,8 @@ fun ReadyToScanBottomSheet(
     ) {
         ReadyToScanBottomSheetContent(
             isVerified = isVerified,
+            title = title,
+            message = message,
             onDismiss = onDismiss
         )
     }
@@ -58,22 +62,28 @@ fun ReadyToScanBottomSheet(
 @Composable
 fun ReadyToScanBottomSheetContent(
     isVerified: Boolean,
+    title: String,
+    message: String,
     onDismiss: () -> Unit
 ) {
     val bgColor = colorResource(id = R.color.sheet_bg_grey)
     val iconBgColor = colorResource(id = R.color.icon_bg_grey)
+    val primaryColor = colorResource(id = R.color.primaryColor)
 
     val compositionReady by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.ready_to_scan))
     val compositionVerified by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.nfc_verified))
     
     val progressVerified = animateLottieCompositionAsState(
         composition = compositionVerified,
-        isPlaying = isVerified
+        isPlaying = isVerified,
+        iterations = 1,
+        restartOnPlay = true
     )
 
-    LaunchedEffect(progressVerified.value) {
-        if (isVerified && progressVerified.value >= 1f) {
-            delay(500)
+    // Ensure the sheet stays open until the verification animation finishes
+    LaunchedEffect(isVerified, progressVerified.isAtEnd) {
+        if (isVerified && progressVerified.isAtEnd) {
+            delay(1200) // Give user time to see the success state
             onDismiss()
         }
     }
@@ -83,7 +93,7 @@ fun ReadyToScanBottomSheetContent(
             .fillMaxWidth()
             .background(bgColor)
             .verticalScroll(rememberScrollState())
-            .padding(bottom = 48.dp), // Padding to ensure content is above navigation bar
+            .padding(bottom = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Header
@@ -97,9 +107,10 @@ fun ReadyToScanBottomSheetContent(
             Box(modifier = Modifier.size(36.dp))
 
             Text(
-                text = if (isVerified) "Verified" else "Ready to Scan",
+                text = if (isVerified) "Verified" else title,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = if (isVerified) primaryColor else Color.Black
             )
 
             Box(
@@ -123,8 +134,10 @@ fun ReadyToScanBottomSheetContent(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = if (isVerified) "NFC Scan Successful" else "Tap the top of your phone to your brick",
+            text = if (isVerified) "NFC Scan Successful" else message,
             style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isVerified) FontWeight.Bold else FontWeight.Normal,
+            color = if (isVerified) primaryColor else Color.Black
         )
 
         Spacer(modifier = Modifier.height(40.dp))
@@ -140,6 +153,7 @@ fun ReadyToScanBottomSheetContent(
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
+                // IMPORTANT: Use progressVerified.value to drive the success animation
                 LottieAnimation(
                     composition = compositionVerified,
                     progress = { progressVerified.value },
@@ -150,24 +164,29 @@ fun ReadyToScanBottomSheetContent(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Cancel Button
-        Button(
-            onClick = onDismiss,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = colorResource(id = R.color.icon_bg_grey)),
-            shape = RoundedCornerShape(100.dp)
-        ) {
-            Text(
-                "Cancel",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 15.sp,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold
-                ),
-            )
+        // Cancel Button (Hidden when verified to prevent accidental dismissal during animation)
+        if (!isVerified) {
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = colorResource(id = R.color.icon_bg_grey)),
+                shape = RoundedCornerShape(100.dp)
+            ) {
+                Text(
+                    "Cancel",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 15.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
+                    ),
+                )
+            }
+        } else {
+            // Placeholder to maintain layout
+            Spacer(modifier = Modifier.height(50.dp))
         }
     }
 }
@@ -179,6 +198,8 @@ fun ReadyToScanBottomSheetPreview() {
         Surface {
             ReadyToScanBottomSheetContent(
                 isVerified = false,
+                title = "Ready to Scan",
+                message = "Tap the top of your phone to your brick",
                 onDismiss = {}
             )
         }
