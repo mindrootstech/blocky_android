@@ -254,18 +254,18 @@ class MainActivity : ComponentActivity() {
         else if (isAppListOpen) {
             YourDistractionsScreen(
                 initialSelectedApps = pendingSelectedApps,
-                onBack = { 
+                onBack = {
                     isAppListOpen = false
-                    showCreateModeSheet = true 
+                    showCreateModeSheet = true
                 },
                 onDone = { selected ->
                     pendingSelectedApps = selected
                     isAppListOpen = false
-                    showCreateModeSheet = true 
+                    showCreateModeSheet = true
                 }
             )
-            BackHandler { 
-                isAppListOpen = false 
+            BackHandler {
+                isAppListOpen = false
                 showCreateModeSheet = true
             }
         } else if (isSchedulesOpen) {
@@ -286,7 +286,7 @@ class MainActivity : ComponentActivity() {
                 onSelectAppClick = { name, apps ->
                     pendingModeName = name
                     pendingSelectedApps = apps
-                    showCreateModeSheet = false 
+                    showCreateModeSheet = false
                     isAppListOpen = true
                 }
             )
@@ -326,7 +326,7 @@ class MainActivity : ComponentActivity() {
                                         onSelectAppClick = { name, apps ->
                                             pendingModeName = name
                                             pendingSelectedApps = apps
-                                            showCreateModeSheet = false 
+                                            showCreateModeSheet = false
                                             isAppListOpen = true
                                         }
                                     )
@@ -387,23 +387,23 @@ class MainActivity : ComponentActivity() {
                 // Update schedule state every second
                 activeSchedule = preferenceManager.getActiveSchedule()
                 val currentSchedule = activeSchedule
-                
+
                 if (currentSchedule != null) {
                     // --- INCREASING Scheduled Progress ---
                     val now = Calendar.getInstance()
                     val start = currentSchedule.startTime
                     val end = currentSchedule.endTime
-                    
+
                     val nowSecs = (now.get(Calendar.HOUR_OF_DAY) * 3600) + (now.get(Calendar.MINUTE) * 60) + now.get(Calendar.SECOND)
                     var startSecs = (start.get(Calendar.HOUR_OF_DAY) * 3600) + (start.get(Calendar.MINUTE) * 60)
                     var endSecs = (end.get(Calendar.HOUR_OF_DAY) * 3600) + (end.get(Calendar.MINUTE) * 60)
-                    
+
                     if (endSecs <= startSecs) endSecs += 86400 // Handle midnight cross
-                    
+
                     val totalDuration = endSecs - startSecs
                     var elapsed = nowSecs - startSecs
                     if (elapsed < 0) elapsed += 86400 // Handled for early check
-                    
+
                     if (totalDuration > 0) {
                         currentProgress = (elapsed.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
                         elapsedSeconds = elapsed.toLong()
@@ -418,7 +418,7 @@ class MainActivity : ComponentActivity() {
                     val startTime = preferenceManager.lastServiceStartTime
                     val totalElapsedSecs = (System.currentTimeMillis() - startTime) / 1000
                     val hourElapsed = totalElapsedSecs % 3600
-                    
+
                     currentProgress = hourElapsed.toFloat() / 3600f
                     elapsedSeconds = hourElapsed
                 } else {
@@ -437,32 +437,22 @@ class MainActivity : ComponentActivity() {
             onToggle = {
                 if (isProtectionActive) {
                     // STOP LOGIC: Turn off manual protection AND any active schedule
-                    val activeMode = modes.find { it.isEnabled }
-                    val activeSch = preferenceManager.getActiveSchedule()
-                    
-                    // SAVE SESSION TO HISTORY
-                    if (activeSch != null) {
-                        preferenceManager.addDetailedSession(activeSch.name, "SCHEDULE", System.currentTimeMillis() - (elapsedSeconds * 1000))
-                    } else if (isManualRunning && activeMode != null) {
-                        preferenceManager.addDetailedSession(activeMode.name, "MODE", preferenceManager.lastServiceStartTime)
-                    }
-
                     preferenceManager.isServiceRunning = false
                     isManualRunning = false
-                    
+
                     // Automatically disable the active schedule if one exists
-                    activeSch?.let { schedule ->
+                    activeSchedule?.let { schedule ->
                         val updatedSchedules = preferenceManager.schedules.map {
                             if (it.id == schedule.id) it.copy(isEnabled = false) else it
                         }
                         preferenceManager.schedules = updatedSchedules
                     }
-                    
+
                     // Also disable all manual modes
                     val updatedModes = modes.map { it.copy(isEnabled = false) }
                     preferenceManager.modes = updatedModes
                     modes = updatedModes
-                    
+
                     Toast.makeText(context, "Protection Stopped", Toast.LENGTH_SHORT).show()
                 } else {
                     // START LOGIC: Manual Start
