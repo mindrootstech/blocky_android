@@ -1,5 +1,9 @@
 package com.example.parentalcontrol.ui.screens
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,23 +17,45 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.parentalcontrol.R
+import com.example.parentalcontrol.receivers.AdminReceiver
+import com.example.parentalcontrol.utils.PreferenceManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingScreen(onNavigate: (Int) -> Unit) {
-    var isStrictModeEnabled by remember { mutableStateOf(false) }
+fun SettingScreen(preferenceManager: PreferenceManager, onNavigate: (Int) -> Unit) {
+    val context = LocalContext.current
+    var isStrictModeEnabled by remember { mutableStateOf(isAdminActive(context)) }
+    
     // Light grey color for the border
     val borderColor = Color(0xFFF0F0F0)
     val primaryColor = colorResource(id = R.color.primaryColor)
     val greyColor = colorResource(id = R.color.greyColor)
     val blackColor = colorResource(id = R.color.blackColor)
+
+    // Sync state when returning to screen
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isStrictModeEnabled = isAdminActive(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -107,8 +133,15 @@ fun SettingScreen(onNavigate: (Int) -> Unit) {
                         trailingContent = {
                             Switch(
                                 checked = isStrictModeEnabled,
-                                onCheckedChange = { isStrictModeEnabled = it },
-                                modifier = Modifier.scale(0.8f), // Reduced the size of the switch
+                                onCheckedChange = { checked ->
+                                    if (checked) {
+                                        requestAdminPermission(context)
+                                    } else {
+                                        removeAdminPermission(context)
+                                        isStrictModeEnabled = false
+                                    }
+                                },
+                                modifier = Modifier.scale(0.8f),
                                 colors = SwitchDefaults.colors(
                                     checkedTrackColor = primaryColor,
                                     checkedThumbColor = Color.White,
@@ -189,4 +222,28 @@ fun SettingsNavigationCard(title: String, borderColor: Color, onClick: () -> Uni
             modifier = Modifier.clickable { onClick() }
         )
     }
+}
+
+fun isAdminActive(context: Context): Boolean {
+    val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    val adminComponent = ComponentName(context, AdminReceiver::class.java)
+    return dpm.isAdminActive(adminComponent)
+}
+
+fun requestAdminPermission(context: Context) {
+    val adminComponent = ComponentName(context, AdminReceiver::class.java)
+    val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+        putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+        putExtra(
+            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+            "Required to protect the app from being uninstalled."
+        )
+    }
+    context.startActivity(intent)
+}
+
+fun removeAdminPermission(context: Context) {
+    val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    val adminComponent = ComponentName(context, AdminReceiver::class.java)
+    dpm.removeActiveAdmin(adminComponent)
 }

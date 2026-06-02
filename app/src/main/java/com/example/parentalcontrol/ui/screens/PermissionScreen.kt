@@ -46,11 +46,10 @@ fun PermissionScreen(preferenceManager: PreferenceManager, onContinue: () -> Uni
     // Track each permission as state to ensure UI updates when they change
     var accessibilityGranted by remember { mutableStateOf(isAccessibilityEnabled(context)) }
     var overlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
-    var adminGranted by remember { mutableStateOf(isAdminActive(context)) }
     var usageGranted by remember { mutableStateOf(isUsageStatsPermissionGranted(context)) }
     var notificationGranted by remember { mutableStateOf(isNotificationServiceEnabled(context)) }
 
-    val allGranted = accessibilityGranted && overlayGranted && adminGranted && usageGranted && notificationGranted
+    val allGranted = accessibilityGranted && overlayGranted && usageGranted && notificationGranted
 
     // Use LifecycleObserver to refresh permissions when returning to the app
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -59,7 +58,6 @@ fun PermissionScreen(preferenceManager: PreferenceManager, onContinue: () -> Uni
             if (event == Lifecycle.Event.ON_RESUME) {
                 accessibilityGranted = isAccessibilityEnabled(context)
                 overlayGranted = Settings.canDrawOverlays(context)
-                adminGranted = isAdminActive(context)
                 usageGranted = isUsageStatsPermissionGranted(context)
                 notificationGranted = isNotificationServiceEnabled(context)
             }
@@ -141,12 +139,6 @@ fun PermissionScreen(preferenceManager: PreferenceManager, onContinue: () -> Uni
                 description = "Allows the app to show the lock screen over other apps.",
                 isGranted = overlayGranted,
                 onClick = { requestOverlayPermission(context) }
-            )
-            PermissionCard(
-                title = "Device Admin",
-                description = "Prevents the app from being uninstalled without permission.",
-                isGranted = adminGranted,
-                onClick = { requestAdminPermission(context) }
             )
             PermissionCard(
                 title = "Usage Access",
@@ -261,26 +253,6 @@ fun isNotificationServiceEnabled(context: Context): Boolean {
     return flat?.contains(context.packageName) == true
 }
 
-fun isAdminActive(context: Context): Boolean {
-    val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-    val adminComponent = ComponentName(context, AdminReceiver::class.java)
-    return dpm.isAdminActive(adminComponent)
-}
-
-fun requestAdminPermission(context: Context) {
-    val adminComponent = ComponentName(context, AdminReceiver::class.java)
-
-    val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-        putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
-        putExtra(
-            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-            "Required to protect the app from being uninstalled."
-        )
-    }
-
-    context.startActivity(intent)
-}
-
 fun requestOverlayPermission(context: Context) {
     val intent = Intent(
         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -311,7 +283,6 @@ fun isUsageStatsPermissionGranted(context: Context): Boolean {
 fun areAllPermissionsGranted(context: Context): Boolean {
     return isAccessibilityEnabled(context) &&
             Settings.canDrawOverlays(context) &&
-            isAdminActive(context) &&
             isNotificationServiceEnabled(context) &&
             isUsageStatsPermissionGranted(context)
 }

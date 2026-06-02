@@ -74,11 +74,22 @@ class MainActivity : ComponentActivity() {
     private var isNfcVerified by mutableStateOf(false)
     private var onNfcVerifiedAction by mutableStateOf<(() -> Unit)?>(null)
 
+    // Shared Protection States
+    private var modes by mutableStateOf(listOf<Mode>())
+    private var isManualRunning by mutableStateOf(false)
+    private var activeSchedule by mutableStateOf<Schedule?>(null)
+    private var currentProgress by mutableStateOf(0f)
+    private var elapsedSeconds by mutableStateOf(0L)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
 
         preferenceManager = PreferenceManager(this)
+        modes = preferenceManager.modes
+        isManualRunning = preferenceManager.isServiceRunning
+        activeSchedule = preferenceManager.getActiveSchedule()
+
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
 
         splashScreen.setKeepOnScreenCondition { !isReady }
@@ -225,13 +236,34 @@ class MainActivity : ComponentActivity() {
         if (scannedValue != null && scannedValue.contains(expectedValue)) {
             isNfcVerified = true
             
-            // If it's a passive scan (e.g. while on Lock Screen), trigger unlock directly
-            if (scanPurpose == null && shouldShowLockScreen) {
-                performUnlock()
+            // PASSIVE SCAN: If no purpose is set but protection is active, stop it
+            if (scanPurpose == null) {
+                if (isManualRunning || activeSchedule != null) {
+                    stopAllProtection()
+                } else if (shouldShowLockScreen) {
+                    performUnlock()
+                }
+                isNfcVerified = false
             }
         } else {
             Toast.makeText(this, "Invalid NFC Tag Value!", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun stopAllProtection() {
+        preferenceManager.isServiceRunning = false
+        isManualRunning = false
+        activeSchedule?.let { schedule ->
+            val updatedSchedules = preferenceManager.schedules.map {
+                if (it.id == schedule.id) it.copy(isEnabled = false) else it
+            }
+            preferenceManager.schedules = updatedSchedules
+        }
+        val updatedModes = modes.map { it.copy(isEnabled = false) }
+        preferenceManager.modes = updatedModes
+        modes = updatedModes
+        activeSchedule = null
+        Toast.makeText(this, "Protection Stopped", Toast.LENGTH_SHORT).show()
     }
 
     private fun performUnlock() {
@@ -296,12 +328,6 @@ class MainActivity : ComponentActivity() {
 
         val lifecycleOwner = LocalLifecycleOwner.current
 
-        // Shared Protection States
-        var modes by remember { mutableStateOf(preferenceManager.modes) }
-        var isManualRunning by remember { mutableStateOf(preferenceManager.isServiceRunning) }
-        var currentProgress by remember { mutableFloatStateOf(0f) }
-        var elapsedSeconds by remember { mutableLongStateOf(0L) }
-        var activeSchedule by remember { mutableStateOf(preferenceManager.getActiveSchedule()) }
         val isProtectionActive = isManualRunning || activeSchedule != null
 
         // Timer and Service syncing
@@ -349,21 +375,11 @@ class MainActivity : ComponentActivity() {
         }
 
         val onToggleProtection = {
+            isNfcVerified = false
             if (isProtectionActive) {
                 scanPurpose = ScanPurpose.STOP_PROTECTION
                 onNfcVerifiedAction = {
-                    preferenceManager.isServiceRunning = false
-                    isManualRunning = false
-                    activeSchedule?.let { schedule ->
-                        val updatedSchedules = preferenceManager.schedules.map {
-                            if (it.id == schedule.id) it.copy(isEnabled = false) else it
-                        }
-                        preferenceManager.schedules = updatedSchedules
-                    }
-                    val updatedModes = modes.map { it.copy(isEnabled = false) }
-                    preferenceManager.modes = updatedModes
-                    modes = updatedModes
-                    Toast.makeText(context, "Protection Stopped", Toast.LENGTH_SHORT).show()
+                    stopAllProtection()
                 }
             } else {
                 if (modes.none { it.isEnabled }) {
@@ -504,7 +520,7 @@ class MainActivity : ComponentActivity() {
                                 3 -> {
                                     isHistoryOpen = true
                                 }
-                                7 -> SettingScreen(onNavigate = {
+                                7 -> SettingScreen(preferenceManager = preferenceManager, onNavigate = {
                                     when (it) {
                                         2 -> isSchedulesOpen = true
                                         3 -> isHistoryOpen = true
