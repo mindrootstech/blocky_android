@@ -339,6 +339,22 @@ class MainActivity : ComponentActivity() {
 
         val lifecycleOwner = LocalLifecycleOwner.current
 
+        // Re-check permissions on resume to ensure we don't skip the screen if they were revoked
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    if (hasTappedContinue && !areAllPermissionsGranted(context)) {
+                        hasTappedContinue = false
+                        preferenceManager.isPermissionOnboarded = false
+                    }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+            }
+        }
+
         val isProtectionActive = isManualRunning || activeSchedule != null
 
         // Timer and Service syncing
@@ -424,7 +440,7 @@ class MainActivity : ComponentActivity() {
         // --- NAVIGATION LOGIC ---
         
         // Priority 1: Permission screen MUST be explicitly completed before the dashboard is accessible
-        if (!hasTappedContinue) {
+        if (!hasTappedContinue || !areAllPermissionsGranted(context)) {
             PermissionScreen(
                 preferenceManager = preferenceManager,
                 onContinue = {
