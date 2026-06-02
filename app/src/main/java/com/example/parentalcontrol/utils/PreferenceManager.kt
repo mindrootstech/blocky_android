@@ -49,31 +49,31 @@ open class PreferenceManager(context: Context?) {
 
     var isFirstLaunch: Boolean
         get() = prefs?.getBoolean("is_first_launch", true) ?: true
-        set(value) { prefs?.edit()?.putBoolean("is_first_launch", value)?.apply() }
+        set(value) { prefs?.edit()?.putBoolean("is_first_launch", value)?.commit() }
 
     var isPermissionOnboarded: Boolean
         get() = prefs?.getBoolean("is_permission_onboarded", false) ?: false
-        set(value) { prefs?.edit()?.putBoolean("is_permission_onboarded", value)?.apply() }
+        set(value) { prefs?.edit()?.putBoolean("is_permission_onboarded", value)?.commit() }
 
     var isLocked: Boolean
         get() = prefs?.getBoolean("is_locked", true) ?: true
-        set(value) { prefs?.edit()?.putBoolean("is_locked", value)?.apply() }
+        set(value) { prefs?.edit()?.putBoolean("is_locked", value)?.commit() }
 
     var unlockExpiration: Long
         get() = prefs?.getLong("unlock_expiration", 0L) ?: 0L
-        set(value) { prefs?.edit()?.putLong("unlock_expiration", value)?.apply() }
+        set(value) { prefs?.edit()?.putLong("unlock_expiration", value)?.commit() }
 
     var isServiceRunning: Boolean
         get() = prefs?.getBoolean("is_service_running", false) ?: false
-        set(value) { prefs?.edit()?.putBoolean("is_service_running", value)?.apply() }
+        set(value) { prefs?.edit()?.putBoolean("is_service_running", value)?.commit() }
 
     var lastServiceStartTime: Long
         get() = prefs?.getLong("last_service_start_time", 0L) ?: 0L
-        set(value) { prefs?.edit()?.putLong("last_service_start_time", value)?.apply() }
+        set(value) { prefs?.edit()?.putLong("last_service_start_time", value)?.commit() }
 
     var emergencyCount: Int
         get() = prefs?.getInt("emergency_count", 5) ?: 5
-        set(value) { prefs?.edit()?.putInt("emergency_count", value)?.apply() }
+        set(value) { prefs?.edit()?.putInt("emergency_count", value)?.commit() }
 
     companion object {
         const val NFC_VERIFICATION_VALUE = "toggle_bool_variable"
@@ -85,7 +85,7 @@ open class PreferenceManager(context: Context?) {
 
     var restrictedApps: Set<String>
         get() = prefs?.getStringSet("restricted_apps", emptySet()) ?: emptySet()
-        set(value) { prefs?.edit()?.putStringSet("restricted_apps", value)?.apply() }
+        set(value) { prefs?.edit()?.putStringSet("restricted_apps", value)?.commit() }
 
     fun toggleAppRestriction(packageName: String) {
         val current = restrictedApps.toMutableSet()
@@ -99,83 +99,108 @@ open class PreferenceManager(context: Context?) {
 
     var scheduledApps: Set<String>
         get() = prefs?.getStringSet("scheduled_apps", emptySet()) ?: emptySet()
-        set(value) { prefs?.edit()?.putStringSet("scheduled_apps", value)?.apply() }
+        set(value) { prefs?.edit()?.putStringSet("scheduled_apps", value)?.commit() }
 
     var modes: List<Mode>
         get() {
             val json = prefs?.getString("modes", null) ?: return emptyList()
             val type = object : TypeToken<List<Mode>>() {}.type
-            return gson.fromJson(json, type)
+            return try {
+                gson.fromJson(json, type)
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs?.edit()?.putString("modes", json)?.apply()
+            prefs?.edit()?.putString("modes", json)?.commit()
         }
 
-    open var appGroups: List<AppGroup>
+    var appGroups: List<AppGroup>
         get() {
             val json = prefs?.getString("app_groups", null) ?: return emptyList()
             val type = object : TypeToken<List<AppGroup>>() {}.type
-            return gson.fromJson(json, type)
+            return try {
+                gson.fromJson(json, type)
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs?.edit()?.putString("app_groups", json)?.apply()
+            prefs?.edit()?.putString("app_groups", json)?.commit()
         }
 
     var blockHistory: List<BlockEvent>
         get() {
             val json = prefs?.getString("block_history", null) ?: return emptyList()
             val type = object : TypeToken<List<BlockEvent>>() {}.type
-            return gson.fromJson(json, type)
+            return try {
+                gson.fromJson(json, type)
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs?.edit()?.putString("block_history", json)?.apply()
+            prefs?.edit()?.putString("block_history", json)?.commit()
         }
 
     var capturedNotifications: List<CapturedNotification>
         get() {
             val json = prefs?.getString("captured_notifications", null) ?: return emptyList()
             val type = object : TypeToken<List<CapturedNotification>>() {}.type
-            return gson.fromJson(json, type)
+            return try {
+                gson.fromJson(json, type)
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs?.edit()?.putString("captured_notifications", json)?.apply()
+            prefs?.edit()?.putString("captured_notifications", json)?.commit()
         }
 
     var detailedSessions: List<DetailedSession>
         get() {
             val json = prefs?.getString("detailed_sessions", null) ?: return emptyList()
             val type = object : TypeToken<List<DetailedSession>>() {}.type
-            return gson.fromJson(json, type)
+            return try {
+                gson.fromJson(json, type)
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs?.edit()?.putString("detailed_sessions", json)?.apply()
+            prefs?.edit()?.putString("detailed_sessions", json)?.commit()
         }
 
     var schedules: List<Schedule>
         get() {
             val json = prefs?.getString("schedules", null) ?: return emptyList()
             val type = object : TypeToken<List<Schedule>>() {}.type
-            return gson.fromJson(json, type)
+            return try {
+                gson.fromJson(json, type)
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
         set(value) {
             val json = gson.toJson(value)
-            prefs?.edit()?.putString("schedules", json)?.apply()
+            prefs?.edit()?.putString("schedules", json)?.commit()
         }
 
     fun addDetailedSession(name: String, type: String, startTime: Long) {
         val endTime = System.currentTimeMillis()
         val duration = endTime - startTime
-        if (duration < 5000) return // Ignore sessions shorter than 5 seconds
+        if (duration < 1000) return // Ignore sessions shorter than 1 second for testing
 
         val session = DetailedSession(name, type, startTime, endTime, duration)
         val current = detailedSessions.toMutableList()
         current.add(session)
         detailedSessions = current
+        android.util.Log.d("PreferenceManager", "Session Added: $name, Duration: ${duration}ms")
     }
 
     fun getActiveSchedule(): Schedule? {
@@ -204,14 +229,32 @@ open class PreferenceManager(context: Context?) {
     }
 
     fun isAppRestricted(packageName: String): Boolean {
-        val inActiveMode = modes.any { it.isEnabled && it.packageNames.contains(packageName) }
+        val currentModes = modes
+        val activeMode = currentModes.find { it.isEnabled }
         val activeSchedule = getActiveSchedule()
-        val inActiveSchedule = activeSchedule?.mode?.packageNames?.contains(packageName) ?: false
+        
+        // Detailed logging for debugging
+        android.util.Log.d("PreferenceManager", "--- Restriction Check: $packageName ---")
+        android.util.Log.d("PreferenceManager", "isServiceRunning: $isServiceRunning")
+        android.util.Log.d("PreferenceManager", "Active Mode: ${activeMode?.name ?: "None"}")
+        if (activeMode != null) {
+            android.util.Log.d("PreferenceManager", "Mode Packages: ${activeMode.packageNames}")
+        }
+        android.util.Log.d("PreferenceManager", "Active Schedule: ${activeSchedule?.name ?: "None"}")
 
-        return restrictedApps.contains(packageName) || 
-               appGroups.any { group -> group.isEnabled && group.packageNames.contains(packageName) } ||
-               inActiveMode ||
-               inActiveSchedule
+        // 1. Manual Protection
+        val isManualBlocked = isServiceRunning && activeMode?.packageNames?.contains(packageName) == true
+        
+        // 2. Scheduled Protection
+        val isScheduledBlocked = activeSchedule?.mode?.packageNames?.contains(packageName) == true
+
+        // 3. Specific Apps or Groups
+        val isOtherRestricted = restrictedApps.contains(packageName) || 
+               appGroups.any { group -> group.isEnabled && group.packageNames.contains(packageName) }
+
+        val finalResult = isManualBlocked || isScheduledBlocked || isOtherRestricted
+        android.util.Log.d("PreferenceManager", "Final Decision for $packageName: $finalResult")
+        return finalResult
     }
 
     fun addCapturedNotification(packageName: String, title: String, content: String) {

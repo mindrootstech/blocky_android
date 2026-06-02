@@ -202,8 +202,39 @@ fun CalendarGrid(
 
                 val hasHistory = daySessions.isNotEmpty()
                 val totalMs = daySessions.sumOf { it.durationMs }
-                val hours = totalMs / 3600000
-                val mins = (totalMs % 3600000) / 60000
+                
+                val (line1, line2) = when {
+                    totalMs >= 31536000000L -> { // 365 days
+                        val years = totalMs / 31536000000L
+                        val months = (totalMs % 31536000000L) / 2592000000L
+                        "${years}y" to "${months}M"
+                    }
+                    totalMs >= 2592000000L -> { // 30 days
+                        val months = totalMs / 2592000000L
+                        val weeks = (totalMs % 2592000000L) / 604800000L
+                        "${months}M" to "${weeks}w"
+                    }
+                    totalMs >= 604800000L -> { // 7 days
+                        val weeks = totalMs / 604800000L
+                        val days = (totalMs % 604800000L) / 86400000L
+                        "${weeks}w" to "${days}d"
+                    }
+                    totalMs >= 86400000L -> { // 1 day
+                        val days = totalMs / 86400000L
+                        val hours = (totalMs % 86400000L) / 3600000L
+                        "${days}d" to "${hours}h"
+                    }
+                    totalMs >= 3600000L -> { // 1 hour
+                        val hours = totalMs / 3600000L
+                        val minutes = (totalMs % 3600000L) / 60000L
+                        "${hours}h" to "${minutes}m"
+                    }
+                    else -> { // minutes and seconds
+                        val minutes = totalMs / 60000L
+                        val seconds = (totalMs % 60000L) / 1000L
+                        "${minutes}m" to "${seconds}s"
+                    }
+                }
 
                 Box(
                     modifier = Modifier
@@ -227,8 +258,8 @@ fun CalendarGrid(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         if (hasHistory) {
-                            Text(text = "${hours}h", style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp), fontWeight = FontWeight.Medium)
-                            Text(text = "${mins}m", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), fontWeight = FontWeight.Medium)
+                            Text(text = line1, style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp), fontWeight = FontWeight.Medium)
+                            Text(text = line2, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), fontWeight = FontWeight.Medium)
                         } else {
                             Icon(painter = painterResource(id = R.drawable.app_icon), contentDescription = null, tint = primaryColor.copy(alpha = 0.3f), modifier = Modifier.size(18.dp))
                         }

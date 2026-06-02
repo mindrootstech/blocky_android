@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -20,15 +21,27 @@ class ParentalControlService : Service() {
         preferenceManager = PreferenceManager(this)
         
         // Start foreground immediately as required by Android
-        startForeground(1, createNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(1, createNotification())
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        android.util.Log.i("ParentalControlService", "Service started. isServiceRunning: ${preferenceManager.isServiceRunning}")
+        
         // If the service is started but the flag is off, stop itself.
-        // This handles cases where the system might restart the service automatically.
         if (!preferenceManager.isServiceRunning) {
             stopSelf()
             return START_NOT_STICKY
+        }
+        
+        // Ensure notification is always updated on restart
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(1, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForeground(1, createNotification())
         }
         
         return START_STICKY

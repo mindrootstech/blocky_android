@@ -193,8 +193,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        val isLockedExtra = intent?.getBooleanExtra("EXTRA_LOCKED", false) ?: false
-        shouldShowLockScreen = isLockedExtra
+        // MainActivity no longer handles EXTRA_LOCKED. That is for LockScreenActivity.
     }
 
 
@@ -249,18 +248,33 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stopAllProtection() {
-        preferenceManager.isServiceRunning = false
-        isManualRunning = false
+        if (preferenceManager.isServiceRunning) {
+            val startTime = preferenceManager.lastServiceStartTime
+            if (startTime > 0) {
+                val activeModeName = preferenceManager.modes.find { it.isEnabled }?.name ?: "Manual Protection"
+                preferenceManager.addDetailedSession(activeModeName, "MODE", startTime)
+            }
+        }
+        
         activeSchedule?.let { schedule ->
+            val startTime = preferenceManager.lastServiceStartTime // Assuming same start tracking for now
+            if (startTime > 0) {
+                preferenceManager.addDetailedSession(schedule.name, "SCHEDULE", startTime)
+            }
+            
             val updatedSchedules = preferenceManager.schedules.map {
                 if (it.id == schedule.id) it.copy(isEnabled = false) else it
             }
             preferenceManager.schedules = updatedSchedules
         }
+
+        preferenceManager.isServiceRunning = false
+        isManualRunning = false
         val updatedModes = modes.map { it.copy(isEnabled = false) }
         preferenceManager.modes = updatedModes
         modes = updatedModes
         activeSchedule = null
+        preferenceManager.lastServiceStartTime = 0L // Reset start time
         Toast.makeText(this, "Protection Stopped", Toast.LENGTH_SHORT).show()
     }
 
@@ -298,13 +312,13 @@ class MainActivity : ComponentActivity() {
                     currentScreen = Screen.Main
                 })
 
-                Screen.Main -> MainScreen(shouldShowLockScreen)
+                Screen.Main -> MainScreen()
             }
         }
     }
 
     @Composable
-    fun MainScreen(isBlocked: Boolean) {
+    fun MainScreen() {
         var currentTab by remember { mutableIntStateOf(0) }
         
         // Navigation states for full-screen screens
@@ -319,7 +333,6 @@ class MainActivity : ComponentActivity() {
         var pendingSelectedApps by remember { mutableStateOf(setOf<String>()) }
         var editingModeName by remember { mutableStateOf<String?>(null) }
         
-        val isCurrentlyUnlocked = preferenceManager.isCurrentlyUnlocked()
         val context = LocalContext.current
 
         var hasTappedContinue by remember { mutableStateOf(preferenceManager.isPermissionOnboarded) }
@@ -340,6 +353,9 @@ class MainActivity : ComponentActivity() {
                 val currentSchedule = activeSchedule
 
                 if (currentSchedule != null) {
+                    if (preferenceManager.lastServiceStartTime == 0L) {
+                        preferenceManager.lastServiceStartTime = System.currentTimeMillis()
+                    }
                     val now = Calendar.getInstance()
                     val start = currentSchedule.startTime
                     val end = currentSchedule.endTime
@@ -407,13 +423,8 @@ class MainActivity : ComponentActivity() {
 
         // --- NAVIGATION LOGIC ---
         
-        // Priority 1: Blocking takes absolute priority (only triggered by AppBlockerService)
-        if (isBlocked && !isCurrentlyUnlocked) {
-            LockScreenUI()
-            BackHandler(enabled = true) { /* Block back button when on lock screen */ }
-        }
-        // Priority 2: Permission screen MUST be explicitly completed before the dashboard is accessible
-        else if (!hasTappedContinue) {
+        // Priority 1: Permission screen MUST be explicitly completed before the dashboard is accessible
+        if (!hasTappedContinue) {
             PermissionScreen(
                 preferenceManager = preferenceManager,
                 onContinue = {
