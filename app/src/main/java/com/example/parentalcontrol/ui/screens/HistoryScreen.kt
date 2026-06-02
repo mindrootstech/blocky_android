@@ -121,7 +121,8 @@ fun HistoryScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
                                     Text(
                                         text = monthYearFormat.format(monthCal.time),
                                         style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Normal
+                                        fontWeight = FontWeight.Normal,
+                                        color = Color.Black
                                     ) 
                                 },
                                 onClick = {
@@ -138,7 +139,14 @@ fun HistoryScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
             // Weekday Headers
             Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
                 listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { day ->
-                    Text(text = day, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    Text(
+                        text = day,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        color = Color.Black
+                    )
                 }
             }
 

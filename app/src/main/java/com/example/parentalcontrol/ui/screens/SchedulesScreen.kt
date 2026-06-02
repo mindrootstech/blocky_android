@@ -323,12 +323,12 @@ fun ScheduleListItem(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = primaryColor,
                                 uncheckedThumbColor = Color.White,
-                                uncheckedTrackColor = Color.LightGray,
+                                uncheckedTrackColor = Color(0xFFE0E0E0),
                                 uncheckedBorderColor = Color.Transparent,
                                 disabledCheckedTrackColor = primaryColor.copy(alpha = 0.5f),
-                                disabledUncheckedTrackColor = Color.LightGray.copy(alpha = 0.5f)
+                                disabledUncheckedTrackColor = Color(0xFFE0E0E0).copy(alpha = 0.5f)
                             ),
-                            modifier = Modifier.scale(0.7f)
+                            modifier = Modifier.scale(0.8f)
                         )
                     }
                 }
