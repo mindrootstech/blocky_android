@@ -1,6 +1,7 @@
 package com.example.parentalcontrol.ui.screens
 
 import android.app.Activity
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -32,6 +33,15 @@ fun LockScreenUI() {
     val greyColor = colorResource(id = R.color.greyColor)
     val primaryColor = colorResource(id = R.color.primaryColor)
 
+    val goHome = {
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+        activity?.finish()
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -44,7 +54,7 @@ fun LockScreenUI() {
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { activity?.finish() }) {
+                    IconButton(onClick = { goHome() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Default.ArrowBack,
                             contentDescription = "Back",
@@ -107,7 +117,7 @@ fun LockScreenUI() {
                 textDecoration = TextDecoration.Underline,
                 modifier = Modifier
                     .padding(bottom = 64.dp) // Increased from 48.dp to add space below
-                    .clickable { activity?.finish() }
+                    .clickable { goHome() }
             )
         }
     }

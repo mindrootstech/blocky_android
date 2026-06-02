@@ -163,14 +163,10 @@ fun HomeContent(
                 if (modes.isNotEmpty()) {
                     Row(
                         modifier = Modifier
-                            .then(
-                                if (!isRunning) {
-                                    Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = onCreateModeClick
-                                    )
-                                } else Modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = onCreateModeClick
                             ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

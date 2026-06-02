@@ -1,5 +1,6 @@
 package com.example.parentalcontrol.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -30,10 +32,22 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SchedulesScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
+fun SchedulesScreen(
+    preferenceManager: PreferenceManager,
+    activeScheduleId: String?,
+    onBack: () -> Unit,
+    onSchedulesChange: (List<Schedule>) -> Unit = {}
+) {
+    val context = LocalContext.current
     var showCreateSheet by remember { mutableStateOf(false) }
     var editingSchedule by remember { mutableStateOf<Schedule?>(null) }
     var schedules by remember { mutableStateOf(preferenceManager.schedules) }
+    
+    // Sync local state if preferenceManager changes
+    LaunchedEffect(preferenceManager.schedules) {
+        schedules = preferenceManager.schedules
+    }
+    
     val modes = remember { preferenceManager.modes }
     val primaryColor = colorResource(id = R.color.primaryColor)
 
@@ -45,7 +59,8 @@ fun SchedulesScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
                     Text(
                         "Schedules",
                         style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = colorResource(id = R.color.blackColor)
                     )
                 },
                 navigationIcon = {
@@ -170,18 +185,29 @@ fun SchedulesScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(schedules) { schedule ->
+                    val isCurrentActive = schedule.id == activeScheduleId
                     ScheduleListItem(
                         schedule = schedule,
+                        isCurrentActive = isCurrentActive,
                         onToggle = { isEnabled ->
-                            val updatedSchedules = schedules.map {
-                                if (it.id == schedule.id) it.copy(isEnabled = isEnabled) else it
+                            if (isCurrentActive) {
+                                Toast.makeText(context, "Stop current schedule to disable it", Toast.LENGTH_SHORT).show()
+                            } else {
+                                val updatedSchedules = schedules.map {
+                                    if (it.id == schedule.id) it.copy(isEnabled = isEnabled) else it
+                                }
+                                preferenceManager.schedules = updatedSchedules
+                                schedules = updatedSchedules
+                                onSchedulesChange(updatedSchedules)
                             }
-                            preferenceManager.schedules = updatedSchedules
-                            schedules = updatedSchedules
                         },
                         onEditClick = {
-                            editingSchedule = schedule
-                            showCreateSheet = true
+                            if (isCurrentActive) {
+                                Toast.makeText(context, "Stop current schedule to edit it", Toast.LENGTH_SHORT).show()
+                            } else {
+                                editingSchedule = schedule
+                                showCreateSheet = true
+                            }
                         }
                     )
                 }
@@ -216,6 +242,7 @@ fun SchedulesScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
                 }
                 preferenceManager.schedules = updatedSchedules
                 schedules = updatedSchedules
+                onSchedulesChange(updatedSchedules)
                 showCreateSheet = false
                 editingSchedule = null
             },
@@ -224,6 +251,7 @@ fun SchedulesScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
                     val updatedSchedules = schedules.filter { it.id != editingSchedule!!.id }
                     preferenceManager.schedules = updatedSchedules
                     schedules = updatedSchedules
+                    onSchedulesChange(updatedSchedules)
                     showCreateSheet = false
                     editingSchedule = null
                 }
@@ -236,6 +264,7 @@ fun SchedulesScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
 @Composable
 fun ScheduleListItem(
     schedule: Schedule,
+    isCurrentActive: Boolean,
     onToggle: (Boolean) -> Unit,
     onEditClick: () -> Unit
 ) {
@@ -289,12 +318,15 @@ fun ScheduleListItem(
                         Switch(
                             checked = schedule.isEnabled,
                             onCheckedChange = onToggle,
+                            enabled = !isCurrentActive,
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = primaryColor,
                                 uncheckedThumbColor = Color.White,
                                 uncheckedTrackColor = Color.LightGray,
-                                uncheckedBorderColor = Color.Transparent
+                                uncheckedBorderColor = Color.Transparent,
+                                disabledCheckedTrackColor = primaryColor.copy(alpha = 0.5f),
+                                disabledUncheckedTrackColor = Color.LightGray.copy(alpha = 0.5f)
                             ),
                             modifier = Modifier.scale(0.7f)
                         )

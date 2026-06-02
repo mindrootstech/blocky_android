@@ -91,7 +91,8 @@ fun YourDistractionsScreen(
                         Text(
                             text = "Your Distraction",
                             style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = colorResource(id = R.color.blackColor)
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))

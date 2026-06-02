@@ -33,6 +33,7 @@ import com.example.parentalcontrol.utils.PreferenceManager
 @Composable
 fun ModeListScreen(
     preferenceManager: PreferenceManager,
+    activeModeName: String?,
     onBack: () -> Unit,
     showCreateSheet: Boolean,
     onShowCreateSheetChange: (Boolean) -> Unit,
@@ -42,10 +43,17 @@ fun ModeListScreen(
     onPendingSelectedAppsChange: (Set<String>) -> Unit,
     editingModeName: String?,
     onEditingModeNameChange: (String?) -> Unit,
-    onSelectAppClick: (String, Set<String>) -> Unit
+    onSelectAppClick: (String, Set<String>) -> Unit,
+    onModesChange: (List<Mode>) -> Unit
 ) {
     var modes by remember { mutableStateOf(preferenceManager.modes) }
+
+    // Keep local state in sync if preferenceManager changes
+    LaunchedEffect(preferenceManager.modes) {
+        modes = preferenceManager.modes
+    }
     val primaryColor = colorResource(id = R.color.primaryColor)
+    val context = LocalContext.current
 
     Scaffold(
         modifier = Modifier.navigationBarsPadding(),
@@ -55,7 +63,8 @@ fun ModeListScreen(
                     Text(
                         "Mode List",
                         style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = colorResource(id = R.color.blackColor)
                     )
                 },
                 navigationIcon = {
@@ -185,13 +194,18 @@ fun ModeListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(modes) { mode ->
+                    val isCurrentActive = mode.name == activeModeName
                     ModeListItem(
                         mode = mode,
                         onEditClick = {
-                            onEditingModeNameChange(it.name)
-                            onPendingModeNameChange(it.name)
-                            onPendingSelectedAppsChange(it.packageNames)
-                            onShowCreateSheetChange(true)
+                            if (isCurrentActive) {
+                                android.widget.Toast.makeText(context, "Stop protection to edit current mode", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                onEditingModeNameChange(it.name)
+                                onPendingModeNameChange(it.name)
+                                onPendingSelectedAppsChange(it.packageNames)
+                                onShowCreateSheetChange(true)
+                            }
                         }
                     )
                 }
@@ -219,6 +233,7 @@ fun ModeListScreen(
                 }
                 preferenceManager.modes = updatedModes
                 modes = updatedModes
+                onModesChange(updatedModes)
                 onShowCreateSheetChange(false)
                 onPendingModeNameChange("")
                 onPendingSelectedAppsChange(emptySet())
@@ -229,6 +244,7 @@ fun ModeListScreen(
                     val updatedModes = modes.filter { it.name != editingModeName }
                     preferenceManager.modes = updatedModes
                     modes = updatedModes
+                    onModesChange(updatedModes)
                     onShowCreateSheetChange(false)
                     onPendingModeNameChange("")
                     onPendingSelectedAppsChange(emptySet())

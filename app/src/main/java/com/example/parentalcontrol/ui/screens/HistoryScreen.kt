@@ -56,7 +56,8 @@ fun HistoryScreen(preferenceManager: PreferenceManager, onBack: () -> Unit) {
                     Text(
                         "History",
                         style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                 },
                 navigationIcon = {

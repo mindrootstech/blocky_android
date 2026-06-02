@@ -446,11 +446,18 @@ class MainActivity : ComponentActivity() {
                 showCreateModeSheet = true
             }
         } else if (isSchedulesOpen) {
-            SchedulesScreen(preferenceManager = preferenceManager, onBack = { isSchedulesOpen = false })
+            SchedulesScreen(
+                preferenceManager = preferenceManager,
+                activeScheduleId = activeSchedule?.id,
+                onBack = { isSchedulesOpen = false },
+                onSchedulesChange = { /* Schedules state is local to Screens or fetched via prefManager */ }
+            )
             BackHandler { isSchedulesOpen = false }
         } else if (isModeListOpen) {
+            val activeModeName = if (isManualRunning) modes.find { it.isEnabled }?.name else activeSchedule?.mode?.name
             ModeListScreen(
                 preferenceManager = preferenceManager,
+                activeModeName = activeModeName,
                 onBack = { isModeListOpen = false },
                 showCreateSheet = showCreateModeSheet,
                 onShowCreateSheetChange = { showCreateModeSheet = it },
@@ -465,7 +472,8 @@ class MainActivity : ComponentActivity() {
                     pendingSelectedApps = apps
                     showCreateModeSheet = false
                     isAppListOpen = true
-                }
+                },
+                onModesChange = { modes = it }
             )
             BackHandler { isModeListOpen = false }
         } else if (isHistoryOpen) {
