@@ -71,6 +71,10 @@ open class PreferenceManager(context: Context?) {
         get() = prefs?.getLong("last_service_start_time", 0L) ?: 0L
         set(value) { prefs?.edit()?.putLong("last_service_start_time", value)?.apply() }
 
+    var emergencyCount: Int
+        get() = prefs?.getInt("emergency_count", 5) ?: 5
+        set(value) { prefs?.edit()?.putInt("emergency_count", value)?.apply() }
+
     companion object {
         const val NFC_VERIFICATION_VALUE = "toggle_bool_variable"
     }

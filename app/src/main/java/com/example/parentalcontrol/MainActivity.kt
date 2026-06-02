@@ -236,11 +236,9 @@ class MainActivity : ComponentActivity() {
         if (scannedValue != null && scannedValue.contains(expectedValue)) {
             isNfcVerified = true
             
-            // PASSIVE SCAN: If no purpose is set but protection is active, stop it
+            // PASSIVE SCAN: If no purpose is set but on Lock Screen, unlock it
             if (scanPurpose == null) {
-                if (isManualRunning || activeSchedule != null) {
-                    stopAllProtection()
-                } else if (shouldShowLockScreen) {
+                if (shouldShowLockScreen) {
                     performUnlock()
                 }
                 isNfcVerified = false
@@ -520,14 +518,21 @@ class MainActivity : ComponentActivity() {
                                 3 -> {
                                     isHistoryOpen = true
                                 }
-                                7 -> SettingScreen(preferenceManager = preferenceManager, onNavigate = {
-                                    when (it) {
-                                        2 -> isSchedulesOpen = true
-                                        3 -> isHistoryOpen = true
-                                        8 -> isModeListOpen = true
-                                        else -> currentTab = it
+                                7 -> SettingScreen(
+                                    preferenceManager = preferenceManager,
+                                    isProtectionActive = isProtectionActive,
+                                    onNavigate = {
+                                        when (it) {
+                                            2 -> isSchedulesOpen = true
+                                            3 -> isHistoryOpen = true
+                                            8 -> isModeListOpen = true
+                                            else -> currentTab = it
+                                        }
+                                    },
+                                    onEmergencyClick = {
+                                        stopAllProtection()
                                     }
-                                })
+                                )
                             }
                         }
                     }

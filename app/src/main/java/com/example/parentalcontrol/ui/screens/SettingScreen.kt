@@ -1,9 +1,9 @@
 package com.example.parentalcontrol.ui.screens
 
-import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,37 +23,117 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.parentalcontrol.R
 import com.example.parentalcontrol.receivers.AdminReceiver
-import com.example.parentalcontrol.utils.PreferenceManager
+import com.example.parentalcontrol.utils.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingScreen(preferenceManager: PreferenceManager, onNavigate: (Int) -> Unit) {
+fun SettingScreen(
+    preferenceManager: PreferenceManager,
+    isProtectionActive: Boolean,
+    onNavigate: (Int) -> Unit,
+    onEmergencyClick: () -> Unit = {}
+) {
     val context = LocalContext.current
     var isStrictModeEnabled by remember { mutableStateOf(isAdminActive(context)) }
+    var showEmergencyDialog by remember { mutableStateOf(false) }
+    var currentEmergencyCount by remember { mutableIntStateOf(preferenceManager.emergencyCount) }
     
-    // Light grey color for the border
     val borderColor = Color(0xFFF0F0F0)
     val primaryColor = colorResource(id = R.color.primaryColor)
     val greyColor = colorResource(id = R.color.greyColor)
     val blackColor = colorResource(id = R.color.blackColor)
 
-    // Sync state when returning to screen
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isStrictModeEnabled = isAdminActive(context)
+                currentEmergencyCount = preferenceManager.emergencyCount
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    if (showEmergencyDialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showEmergencyDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "Blocky Emergency",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = blackColor,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "This will end you current session and use 1 blocky emergency. You will have ${currentEmergencyCount - 1} remaining after this.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = greyColor,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            showEmergencyDialog = false
+                            preferenceManager.emergencyCount -= 1
+                            currentEmergencyCount = preferenceManager.emergencyCount
+                            onEmergencyClick()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = primaryColor,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(100.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                "Yes", 
+                                fontWeight = FontWeight.SemiBold, 
+                                fontSize = 13.sp,
+                                color = Color.White,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextButton(
+                        onClick = { showEmergencyDialog = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            "No", 
+                            color = greyColor, 
+                            fontWeight = FontWeight.Medium, 
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -102,8 +182,8 @@ fun SettingScreen(preferenceManager: PreferenceManager, onNavigate: (Int) -> Uni
                         supportingContent = {
                             Text(
                                 buildAnnotatedString {
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold, color = Color.Black)) {
-                                        append("5 ")
+                                    withStyle(style = SpanStyle(fontWeight = FontWeight.SemiBold, color = blackColor)) {
+                                        append("$currentEmergencyCount ")
                                     }
                                     withStyle(style = SpanStyle(color = greyColor)) {
                                         append("Remaining")
@@ -113,7 +193,15 @@ fun SettingScreen(preferenceManager: PreferenceManager, onNavigate: (Int) -> Uni
                             )
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { /* Handle Emergency Click */ }
+                        modifier = Modifier.clickable { 
+                            if (!isProtectionActive) {
+                                Toast.makeText(context, "Emergency only works when apps are blocked!", Toast.LENGTH_SHORT).show()
+                            } else if (currentEmergencyCount > 0) {
+                                showEmergencyDialog = true 
+                            } else {
+                                Toast.makeText(context, "No more blocky emergencies remaining!", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     )
                 }
             }
@@ -134,11 +222,11 @@ fun SettingScreen(preferenceManager: PreferenceManager, onNavigate: (Int) -> Uni
                             Switch(
                                 checked = isStrictModeEnabled,
                                 onCheckedChange = { checked ->
+                                    isStrictModeEnabled = checked
                                     if (checked) {
                                         requestAdminPermission(context)
                                     } else {
                                         removeAdminPermission(context)
-                                        isStrictModeEnabled = false
                                     }
                                 },
                                 modifier = Modifier.scale(0.8f),
@@ -222,28 +310,4 @@ fun SettingsNavigationCard(title: String, borderColor: Color, onClick: () -> Uni
             modifier = Modifier.clickable { onClick() }
         )
     }
-}
-
-fun isAdminActive(context: Context): Boolean {
-    val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-    val adminComponent = ComponentName(context, AdminReceiver::class.java)
-    return dpm.isAdminActive(adminComponent)
-}
-
-fun requestAdminPermission(context: Context) {
-    val adminComponent = ComponentName(context, AdminReceiver::class.java)
-    val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-        putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
-        putExtra(
-            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-            "Required to protect the app from being uninstalled."
-        )
-    }
-    context.startActivity(intent)
-}
-
-fun removeAdminPermission(context: Context) {
-    val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-    val adminComponent = ComponentName(context, AdminReceiver::class.java)
-    dpm.removeActiveAdmin(adminComponent)
 }
