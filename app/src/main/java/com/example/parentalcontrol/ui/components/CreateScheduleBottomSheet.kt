@@ -82,8 +82,16 @@ fun CreateScheduleBottomSheetContent(
     var scheduleName by remember { mutableStateOf(initialSchedule?.name ?: "") }
 
     // Using nullable Calendars to track if time was selected
-    var startTime by remember { mutableStateOf<Calendar?>(initialSchedule?.startTime) }
-    var endTime by remember { mutableStateOf<Calendar?>(initialSchedule?.endTime) }
+    var startTime by remember { 
+        mutableStateOf<Calendar?>(initialSchedule?.let { 
+            Calendar.getInstance().apply { timeInMillis = it.startTimeMs } 
+        }) 
+    }
+    var endTime by remember { 
+        mutableStateOf<Calendar?>(initialSchedule?.let { 
+            Calendar.getInstance().apply { timeInMillis = it.endTimeMs } 
+        }) 
+    }
 
     var selectedMode by remember { mutableStateOf<Mode?>(initialSchedule?.mode) }
     val selectedDays = remember { 

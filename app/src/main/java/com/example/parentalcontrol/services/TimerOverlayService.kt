@@ -34,7 +34,7 @@ class TimerOverlayService : Service() {
             val startMs = when {
                 activeSchedule != null -> {
                     // Use schedule's start time for accurate elapsed count
-                    val start = activeSchedule.startTime
+                    val start = Calendar.getInstance().apply { timeInMillis = activeSchedule.startTimeMs }
                     val now = Calendar.getInstance()
                     val startCal = now.clone() as Calendar
                     startCal.set(Calendar.HOUR_OF_DAY, start.get(Calendar.HOUR_OF_DAY))
@@ -56,12 +56,17 @@ class TimerOverlayService : Service() {
             val totalSeconds = (elapsedMs / 1000).coerceAtLeast(0)
             
             // Apply 1-hour session loop for manual/no-end-time modes
-            val displayedSeconds = if (activeSchedule == null || 
-                (activeSchedule.startTime.get(Calendar.HOUR_OF_DAY) == activeSchedule.endTime.get(Calendar.HOUR_OF_DAY) && 
-                 activeSchedule.startTime.get(Calendar.MINUTE) == activeSchedule.endTime.get(Calendar.MINUTE))) {
+            val displayedSeconds = if (activeSchedule == null) {
                 totalSeconds % 3600
             } else {
-                totalSeconds
+                val start = Calendar.getInstance().apply { timeInMillis = activeSchedule.startTimeMs }
+                val end = Calendar.getInstance().apply { timeInMillis = activeSchedule.endTimeMs }
+                if (start.get(Calendar.HOUR_OF_DAY) == end.get(Calendar.HOUR_OF_DAY) && 
+                    start.get(Calendar.MINUTE) == end.get(Calendar.MINUTE)) {
+                    totalSeconds % 3600
+                } else {
+                    totalSeconds
+                }
             }
 
             val hours = displayedSeconds / 3600

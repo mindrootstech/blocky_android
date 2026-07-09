@@ -29,10 +29,11 @@ class ParentalControlService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        android.util.Log.i("ParentalControlService", "Service started. isServiceRunning: ${preferenceManager.isServiceRunning}")
+        val isActiveSchedule = preferenceManager.getActiveSchedule() != null
+        android.util.Log.i("ParentalControlService", "Service started. isServiceRunning: ${preferenceManager.isServiceRunning}, isActiveSchedule: $isActiveSchedule")
         
-        // If the service is started but the flag is off, stop itself.
-        if (!preferenceManager.isServiceRunning) {
+        // If the service is started but no protection is active, stop itself.
+        if (!preferenceManager.isServiceRunning && !isActiveSchedule) {
             stopSelf()
             return START_NOT_STICKY
         }

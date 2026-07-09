@@ -227,14 +227,20 @@ fun SchedulesScreen(
                 val updatedSchedules = if (editingSchedule != null) {
                     schedules.map {
                         if (it.id == editingSchedule!!.id) {
-                            it.copy(name = name, startTime = start, endTime = end, mode = mode, days = days)
+                            it.copy(
+                                name = name, 
+                                startTimeMs = start.timeInMillis, 
+                                endTimeMs = end.timeInMillis, 
+                                mode = mode, 
+                                days = days
+                            )
                         } else it
                     }
                 } else {
                     val newSchedule = Schedule(
                         name = name,
-                        startTime = start,
-                        endTime = end,
+                        startTimeMs = start.timeInMillis,
+                        endTimeMs = end.timeInMillis,
                         mode = mode,
                         days = days
                     )
@@ -343,7 +349,7 @@ fun ScheduleListItem(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "${timeFormatter.format(schedule.startTime.time)} - ${timeFormatter.format(schedule.endTime.time)}",
+                    text = "${timeFormatter.format(Date(schedule.startTimeMs))} - ${timeFormatter.format(Date(schedule.endTimeMs))}",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
                     color = Color.Black

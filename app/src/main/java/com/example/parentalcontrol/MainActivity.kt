@@ -103,6 +103,8 @@ class MainActivity : ComponentActivity() {
             preferenceManager.isLocked = true
         }
 
+        preferenceManager.updateAlarms()
+
         handleIntent(intent)
 
         enableEdgeToEdge()
@@ -257,7 +259,7 @@ class MainActivity : ComponentActivity() {
         }
         
         activeSchedule?.let { schedule ->
-            val startTime = preferenceManager.lastServiceStartTime // Assuming same start tracking for now
+            val startTime = preferenceManager.lastServiceStartTime
             if (startTime > 0) {
                 preferenceManager.addDetailedSession(schedule.name, "SCHEDULE", startTime)
             }
@@ -373,8 +375,8 @@ class MainActivity : ComponentActivity() {
                         preferenceManager.lastServiceStartTime = System.currentTimeMillis()
                     }
                     val now = Calendar.getInstance()
-                    val start = currentSchedule.startTime
-                    val end = currentSchedule.endTime
+                    val start = Calendar.getInstance().apply { timeInMillis = currentSchedule.startTimeMs }
+                    val end = Calendar.getInstance().apply { timeInMillis = currentSchedule.endTimeMs }
                     val nowSecs = (now.get(Calendar.HOUR_OF_DAY) * 3600) + (now.get(Calendar.MINUTE) * 60) + now.get(Calendar.SECOND)
                     var startSecs = (start.get(Calendar.HOUR_OF_DAY) * 3600) + (start.get(Calendar.MINUTE) * 60)
                     var endSecs = (end.get(Calendar.HOUR_OF_DAY) * 3600) + (end.get(Calendar.MINUTE) * 60)
